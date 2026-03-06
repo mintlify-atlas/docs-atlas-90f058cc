@@ -1,0 +1,237 @@
+---
+title: Configuration Settings
+description: Learn how to configure MegaDownloader with config.txt and manage your settings
+---
+
+## Configuration File
+
+MegaDownloader stores all settings in a local configuration file named `config.txt` located in the application's root directory. This file is automatically created when you save settings through the Preferences panel.
+
+<Note>
+The configuration file uses a simple key-value format with values enclosed in double quotes.
+</Note>
+
+## Configuration Format
+
+The `config.txt` file uses the following format:
+
+```txt
+key:"value"
+```
+
+Each setting appears on a separate line with no spaces between the key, colon, and quoted value.
+
+## Available Configuration Keys
+
+MegaDownloader supports the following configuration options:
+
+<AccordionGroup>
+  <Accordion title="ytdlp Path" icon="gear">
+    **Key:** `path`
+    
+    **Description:** Specifies the absolute path to the yt-dlp executable.
+    
+    **Required:** Yes
+    
+    **Example:**
+    ```txt
+    path:"C:\Tools\yt-dlp\yt-dlp.exe"
+    ```
+    
+    <Warning>
+    The application cannot download videos without a valid yt-dlp path. You must configure this before your first download.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Download Directory" icon="folder">
+    **Key:** `downloadDir`
+    
+    **Description:** Sets the default directory where downloaded files will be saved.
+    
+    **Required:** No (defaults to project directory)
+    
+    **Example:**
+    ```txt
+    downloadDir:"C:\Users\YourName\Downloads\Videos"
+    ```
+    
+    <Tip>
+    If not specified, files are saved in the same directory where the application is running.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="FFmpeg Path" icon="video">
+    **Key:** `ffmpegPath`
+    
+    **Description:** Manual path to the FFmpeg directory (optional if FFmpeg is in the yt-dlp directory).
+    
+    **Required:** No (auto-detected if in yt-dlp directory)
+    
+    **Example:**
+    ```txt
+    ffmpegPath:"C:\Tools\ffmpeg\bin"
+    ```
+    
+    <Note>
+    This setting is only needed if FFmpeg is not in the same directory as yt-dlp. See the [FFmpeg setup guide](/configuration/ffmpeg) for more details.
+    </Note>
+  </Accordion>
+</AccordionGroup>
+
+## Example Configuration
+
+A complete `config.txt` file might look like this:
+
+```txt
+path:"C:\Tools\yt-dlp\yt-dlp.exe"
+downloadDir:"C:\Users\YourName\Videos"
+ffmpegPath:"C:\Tools\ffmpeg\bin"
+```
+
+## Managing Settings via GUI
+
+You can configure all settings through the Preferences panel without manually editing the config file.
+
+<Steps>
+  <Step title="Open Preferences">
+    Navigate to **Edit > Preferences** from the menu bar.
+  </Step>
+  
+  <Step title="Configure yt-dlp Path">
+    Click **Change location** and select your `yt-dlp.exe` file.
+    
+    The current path will display as "Not configured" if no path has been set.
+  </Step>
+  
+  <Step title="Set Download Directory (Optional)">
+    Click **Change Download directory** to select where files should be saved.
+    
+    Default: "Default (where project is stored)"
+  </Step>
+  
+  <Step title="Configure Additional Options">
+    - **Create M3U for playlists**: Enable to automatically generate playlist files
+    - **Download Speed**: Set speed limits using the slider and toggle
+  </Step>
+  
+  <Step title="Save Configuration">
+    Click **Save** to write all settings to `config.txt`.
+    
+    <Warning>
+    You must click Save for changes to take effect. Settings are not applied automatically.
+    </Warning>
+  </Step>
+</Steps>
+
+## Speed Limiter Configuration
+
+The speed limiter is configured through the Preferences panel and is stored in memory (not persisted to config.txt).
+
+### Speed Limiter Controls
+
+- **Range:** 1 KB/s to 100,000 KB/s
+- **Default:** 1000 KB/s
+- **Controls:** Both slider and text field update synchronously
+- **Toggle:** Enable/disable the limiter with the "Limiter" button
+
+<Tip>
+The speed limiter uses yt-dlp's `--limit-rate` parameter, specified in kilobytes per second (KB/s).
+</Tip>
+
+## Configuration Persistence
+
+### How Settings Are Loaded
+
+When the application starts, it reads `config.txt` from the working directory:
+
+```java
+private void loadConfig() {
+    File configFile = new File("config.txt");
+    if (configFile.exists()) {
+        // Read line by line
+        // Parse each key:"value" pair
+        // Update UI with loaded values
+    }
+}
+```
+
+From **PreferencesPanel.java** (lines 127-151)
+
+### How Settings Are Saved
+
+When you click **Save** in Preferences, the application writes to `config.txt`:
+
+```java
+private void btnSaveActionPerformed() {
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter("config.txt"))) {
+        writer.write("path:\"" + path + "\"");
+        writer.newLine();
+        if (!downloadDirectoryPath.equals("Default (where project is stored)")) {
+            writer.write("downloadDir:\"" + downloadDirectoryPath + "\"");
+        }
+    }
+}
+```
+
+From **PreferencesPanel.java** (lines 345-369)
+
+## Validation
+
+<AccordionGroup>
+  <Accordion title="Path Validation" icon="check">
+    The application validates that you've selected a path before allowing you to save:
+    
+    - If the path shows "Not configured", saving is blocked
+    - A warning dialog appears: "Please select a yt-dlp location first"
+  </Accordion>
+  
+  <Accordion title="File Chooser Filters" icon="filter">
+    When selecting the yt-dlp executable:
+    
+    - File chooser filters for `.exe` files
+    - Accepts all files if needed
+    - Only accepts files (not directories) for executables
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting Configuration
+
+### Configuration Not Loading
+
+<Warning>
+Ensure `config.txt` is in the same directory where you run the application.
+</Warning>
+
+**Common causes:**
+- File is in the wrong directory
+- File encoding is incorrect (should be plain text)
+- Incorrect format (missing quotes or wrong syntax)
+
+### Settings Not Saving
+
+**Check for:**
+- Write permissions in the application directory
+- Antivirus blocking file writes
+- File is not marked as read-only
+
+### Invalid Paths
+
+**Symptoms:**
+- "yt-dlp path not configured" error on download
+- "FFmpeg not found" warning
+
+**Solutions:**
+- Verify paths exist and are accessible
+- Use absolute paths (not relative paths)
+- Ensure proper escaping of backslashes in Windows paths
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="FFmpeg Setup" icon="video" href="/configuration/ffmpeg">
+    Learn about the hybrid FFmpeg detection system
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/configuration/troubleshooting">
+    Solve common configuration issues
+  </Card>
+</CardGroup>

@@ -1,0 +1,213 @@
+---
+title: Downloading Media
+description: Learn how to download videos and audio from YouTube using MegaDownloader's main interface
+---
+
+MegaDownloader's main interface provides a simple workflow for downloading media from YouTube and other supported platforms using yt-dlp.
+
+## Main Interface Overview
+
+The main panel (`MainPanel.java:30`) is the primary interface for downloading media. It features:
+
+- **URL input field** - Text field for pasting video URLs (`urlField`)
+- **Download button** - Initiates the download process
+- **Audio-only checkbox** - Extract audio as MP3 instead of video
+- **Progress bar** - Real-time download progress tracking
+- **Play button** - Opens the last downloaded file
+- **Advanced options** - Custom yt-dlp arguments
+
+## Downloading Videos
+
+<Steps>
+  <Step title="Paste the Video URL">
+    Copy a YouTube or supported platform URL and paste it into the URL field at the center of the main panel (`MainPanel.java:358`).
+
+    The field has a tooltip: "Paste Video URL"
+  </Step>
+
+  <Step title="Click Download">
+    Click the **Download** button to start the download process (`MainPanel.java:362`).
+
+    The application will:
+    - Validate the URL is not empty
+    - Check that yt-dlp path is configured
+    - Retrieve the download directory from config
+    - Start a background download using SwingWorker
+  </Step>
+
+  <Step title="Monitor Progress">
+    Once the download starts:
+    - The Download button changes to "Downloading..." and becomes disabled
+    - A progress bar appears showing real-time percentage completion (`MainPanel.java:382-384`)
+    - The progress bar parses yt-dlp output to extract percentage values (`MainPanel.java:630-637`)
+  </Step>
+
+  <Step title="Download Completion">
+    When the download completes successfully:
+    - A success dialog appears: "Download completed successfully!"
+    - The "Play Last Downloaded File" button becomes visible (`MainPanel.java:665`)
+    - The URL field displays: "Insert new URL to download new video"
+    - If M3U playlist creation is enabled, a playlist file is generated
+  </Step>
+</Steps>
+
+<Note>
+The download runs in a background SwingWorker thread (`MainPanel.java:546`) to prevent the UI from freezing during long downloads.
+</Note>
+
+## Download Configuration
+
+The download process uses several configuration options:
+
+### yt-dlp Path
+
+The application reads the yt-dlp executable path from `config.txt` (`MainPanel.java:174-191`):
+
+```java
+path:"C:\\path\\to\\yt-dlp.exe"
+```
+
+If not configured, you'll see an error: "yt-dlp path not configured. Please go to Edit > Preferences to set the path."
+
+### Download Directory
+
+Media files are saved to the configured download directory (`MainPanel.java:199-216`):
+
+```java
+downloadDir:"C:\\Users\\YourName\\Downloads"
+```
+
+The output template is: `%(title)s.%(ext)s` (`MainPanel.java:565`)
+
+### Speed Limiting
+
+If the speed limiter is enabled in Preferences, downloads are rate-limited using yt-dlp's `--limit-rate` option (`MainPanel.java:559-562`):
+
+```bash
+yt-dlp --limit-rate 1000K <url>
+```
+
+## Playing Downloaded Files
+
+After a successful download, the **Play Last Downloaded File** button appears (`MainPanel.java:386-395`).
+
+<Steps>
+  <Step title="Click the Play button">
+    The button opens the most recently downloaded file using your system's default media player.
+  </Step>
+
+  <Step title="System Integration">
+    The application uses Java's Desktop API to open the file (`MainPanel.java:714-717`):
+
+    ```java
+    Desktop.getDesktop().open(lastDownloadedFile);
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+If the file doesn't exist or Desktop operations aren't supported, you'll see an error message.
+</Warning>
+
+## Advanced Options
+
+The Advanced toggle button (`tglAdvancedOptions`) reveals a custom arguments panel for power users (`MainPanel.java:785-796`).
+
+### Using Custom Arguments
+
+<Steps>
+  <Step title="Click Advanced ▼">
+    Click the **Advanced ▼** button to expand the custom arguments panel.
+
+    The button changes to **Advanced ▲** when expanded.
+  </Step>
+
+  <Step title="Enter Custom yt-dlp Arguments">
+    Enter any valid yt-dlp command-line arguments in the text area (`txtAreaCustomArgs`).
+
+    Example:
+    ```bash
+    --format "bestvideo[height<=720]+bestaudio/best"
+    ```
+  </Step>
+
+  <Step title="Download with Custom Args">
+    When you click Download, the custom arguments are parsed and appended to the yt-dlp command (`MainPanel.java:577-588`).
+
+    Arguments are split by spaces while respecting quoted strings.
+  </Step>
+</Steps>
+
+<Tip>
+Custom arguments are useful for:
+- Selecting specific video quality/format
+- Adding subtitles (`--write-subs`)
+- Downloading playlists with custom filters
+- Any other yt-dlp feature not exposed in the UI
+</Tip>
+
+## Error Handling
+
+The download process includes comprehensive error handling:
+
+### Common Errors
+
+<AccordionGroup>
+  <Accordion title="Empty URL">
+    **Error**: "Please enter a valid video URL"
+
+    **Cause**: The URL field is empty or contains placeholder text
+
+    **Solution**: Paste a valid video URL
+  </Accordion>
+
+  <Accordion title="yt-dlp Not Configured">
+    **Error**: "yt-dlp path not configured. Please go to Edit > Preferences to set the path."
+
+    **Cause**: The `config.txt` file doesn't contain a valid yt-dlp path
+
+    **Solution**: Go to Preferences and set the yt-dlp location
+  </Accordion>
+
+  <Accordion title="Download Failed">
+    **Error**: "Download failed with exit code: X"
+
+    **Cause**: yt-dlp process exited with a non-zero exit code
+
+    **Solution**: Check the console output for yt-dlp error messages. Common causes:
+    - Invalid URL
+    - Video unavailable or region-locked
+    - Network connectivity issues
+    - Disk space issues
+  </Accordion>
+</AccordionGroup>
+
+## Progress Tracking
+
+The download progress is tracked by parsing yt-dlp's stdout output (`MainPanel.java:597-639`):
+
+```java
+if (line.contains("[download]") && line.contains("%")) {
+    String percentStr = line.substring(line.indexOf("]") + 1, line.indexOf("%")).trim();
+    double percent = Double.parseDouble(percentStr);
+    publish((int) percent);
+}
+```
+
+The progress bar updates in real-time as yt-dlp reports download percentage.
+
+## Keyboard Shortcuts
+
+- **ESC** - Exit the application (`MainPanel.java:158-168`)
+- **Enter** (in URL field) - Trigger URL field action
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Extract Audio" icon="music" href="/guides/audio-extraction">
+    Learn how to download audio-only files as MP3
+  </Card>
+  <Card title="Manage Downloads" icon="folder" href="/guides/managing-downloads">
+    Browse, search, and manage your downloaded media
+  </Card>
+</CardGroup>

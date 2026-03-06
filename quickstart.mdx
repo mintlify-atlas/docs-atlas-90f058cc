@@ -1,80 +1,355 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Download your first video with MegaDownloader in minutes
 ---
 
-## Get started in three steps
-
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide will walk you through using MegaDownloader to download your first video, extract audio, and play the downloaded file. By the end, you'll have a complete understanding of the core workflow.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+Before starting, ensure you've completed the [Installation](/installation) guide and configured the yt-dlp path.
+</Note>
+
+## Starting the Application
+
+<Steps>
+  <Step title="Launch MegaDownloader">
+    Run the application using Maven or the packaged JAR:
+
+    ```bash
+    mvn exec:java
+    ```
+
+    or
+
+    ```bash
+    java -jar target/megadownloader-1.0-SNAPSHOT.jar
+    ```
+
+    The application window will open with a modern dark theme (FlatLaf Darcula) and display the login screen.
+  </Step>
+
+  <Step title="Login to your account">
+    Enter your credentials in the login form:
+
+    1. **Email**: Type your email address (validated in real-time using regex pattern from `LoginForm.java:183`)
+       ```java
+       Pattern pattern = Pattern.compile("^[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,}$");
+       ```
+    
+    2. **Password**: Enter your password (must not be empty)
+    
+    3. **Remember me**: Check this box to save your session token for auto-login next time
+    
+    4. Click **Login** or press **Enter**
+
+    <Tip>
+    The application validates your email format in real-time - you'll see a red border if the format is invalid. The login is processed asynchronously using a `SwingWorker` to keep the UI responsive.
+    </Tip>
+
+    Once authenticated, you'll automatically navigate to the main download panel (`Main.java:227`).
+  </Step>
+</Steps>
+
+## Downloading Your First Video
+
+Now let's download a video from YouTube:
+
+<Steps>
+  <Step title="Paste the video URL">
+    1. Copy a YouTube video URL from your browser
+    2. Paste it into the URL text field at the top of the main panel
+
+    <Warning>
+    The URL field cannot be empty or contain placeholder text. If invalid, you'll see an error dialog (`MainPanel.java:487`).
+    </Warning>
+  </Step>
+
+  <Step title="Configure download options">
+    Before clicking Download, you can customize the download:
+
+    - **Audio only**: Check this box to extract audio as MP3 (requires FFmpeg)
+    - **Advanced options**: Click the **Advanced ▼** button to add custom yt-dlp arguments
+
+    <Note>
+    When "Audio only" is checked, MegaDownloader passes these arguments to yt-dlp (`MainPanel.java:570-574`):
+    
+    ```java
+    if (audioOnly) {
+        command.add("-x");
+        command.add("--audio-format");
+        command.add("mp3");
+    }
+    ```
+    </Note>
+  </Step>
+
+  <Step title="Start the download">
+    Click the **Download** button.
+
+    You'll see:
+    - The button text changes to "Downloading..."
+    - A progress bar appears showing real-time download progress
+    - Console output with yt-dlp logs (if running from terminal)
+
+    The download runs in a background `SwingWorker` thread (`MainPanel.java:546-694`), parsing yt-dlp output to update the progress bar:
+
+    ```java
+    if (line.contains("[download]") && line.contains("%")) {
+        String percentStr = line.substring(line.indexOf("]") + 1, line.indexOf("%")).trim();
+        double percent = Double.parseDouble(percentStr);
+        publish((int) percent);
+    }
+    ```
+  </Step>
+
+  <Step title="Wait for completion">
+    When the download completes successfully:
+    
+    - A success dialog appears: "Download completed successfully!"
+    - The **Play Last Downloaded File** button becomes visible
+    - The URL field updates to: "Insert new URL to download new video"
+    - If M3U playlist creation is enabled in Preferences, a playlist file is generated
+
+    The downloaded file is saved to your configured download directory or the project root by default.
+  </Step>
+</Steps>
+
+## Extracting Audio
+
+To download only the audio from a video:
+
+<Steps>
+  <Step title="Enable audio extraction">
+    Before clicking Download:
+    
+    1. Paste your video URL
+    2. Check the **Audio only** checkbox
+    3. Click **Download**
+  </Step>
+
+  <Step title="FFmpeg processing">
+    MegaDownloader will:
+    
+    1. Download the best audio stream from the video
+    2. Use FFmpeg to convert it to MP3 format
+    3. Save the file with the video title and `.mp3` extension
+
+    <Warning>
+    If FFmpeg is not found, you'll see a warning dialog with instructions (`MainPanel.java:524-537`):
+
+    ```
+    FFmpeg not found! Audio extraction requires FFmpeg.
+    
+    Please either:
+    1. Place ffmpeg.exe and ffprobe.exe in: [your-yt-dlp-directory]
+    2. Add ffmpegPath:"C:\path\to\ffmpeg\folder" to config.txt
+    
+    Continue download anyway?
+    ```
+
+    If you choose "Yes", the download continues but may fail during audio extraction.
+    </Warning>
+  </Step>
+
+  <Step title="Verify audio file">
+    After successful extraction:
+    
+    - The MP3 file appears in your download directory
+    - The progress bar shows 100%
+    - You can play it immediately using the Play button
+  </Step>
+</Steps>
+
+## Playing Downloaded Files
+
+MegaDownloader includes a built-in player launcher:
+
+<Steps>
+  <Step title="Play the last downloaded file">
+    After a successful download, click the **Play Last Downloaded File** button.
+
+    The application uses Java's Desktop API to open the file with your system's default media player (`MainPanel.java:714-717`):
+
+    ```java
+    if (Desktop.isDesktopSupported()) {
+        Desktop desktop = Desktop.getDesktop();
+        desktop.open(lastDownloadedFile);
+    }
+    ```
+  </Step>
+
+  <Step title="Browse all downloaded files">
+    To manage your entire media library:
+    
+    1. Click the **Manage Media** button in the bottom-right corner
+    2. The Media Manager panel opens with a table showing:
+       - All local files in your download directory
+       - Files uploaded to the server (if any)
+       - File type, size, and modification date
+    
+    3. You can:
+       - **Play** any file by double-clicking or using Quick Actions
+       - **Open Folder** to view files in your file explorer
+       - **Download** server files to local storage
+       - **Delete** unwanted local files
+  </Step>
+
+  <Step title="Use Quick Actions">
+    In the Manage Media panel, double-click any action in the Quick Actions list:
+    
+    - **Play**: Opens the selected file in your default media player
+    - **Open Folder**: Opens the download directory in file explorer
+    - **Download**: Downloads server files to your local directory
+    - **Delete**: Permanently deletes local files (with confirmation)
+
+    <Tip>
+    You can also right-click any file in the table to access a context menu with these actions (`ManageMediaPanel.java:309-347`).
+    </Tip>
+  </Step>
+</Steps>
+
+## Advanced Features
+
+### Custom yt-dlp Arguments
+
+For advanced users, you can pass custom arguments directly to yt-dlp:
+
+<Steps>
+  <Step title="Enable advanced options">
+    Click the **Advanced ▼** button on the main panel. The button changes to **Advanced ▲** and reveals a text area.
+  </Step>
+
+  <Step title="Add custom arguments">
+    Enter any valid yt-dlp arguments, for example:
+
+    ```bash
+    --format "bestvideo[height<=720]+bestaudio/best[height<=720]"
+    ```
+
+    or
+
+    ```bash
+    --playlist-start 1 --playlist-end 5
+    ```
+
+    These arguments are parsed and added to the yt-dlp command (`MainPanel.java:576-588`).
+  </Step>
+</Steps>
+
+### Speed Limiting
+
+To limit download speed:
+
+<Steps>
+  <Step title="Open Preferences">
+    Go to **Edit > Preferences** from the menu bar.
+  </Step>
+
+  <Step title="Configure speed limiter">
+    1. Click the **Limiter** toggle button to enable it
+    2. Use the slider or text field to set speed in KB/s (1-100000)
+    3. The text field and slider are synchronized in real-time
+    4. Click **Save**
+
+    When enabled, the `--limit-rate` argument is passed to yt-dlp (`MainPanel.java:559-562`):
+
+    ```java
+    if (limiterEnabled) {
+        command.add("--limit-rate");
+        command.add(speedLimitKBps + "K");
+    }
+    ```
+  </Step>
+</Steps>
+
+### M3U Playlist Creation
+
+For batch downloads (like playlists), enable automatic M3U file generation:
+
+<Steps>
+  <Step title="Enable M3U creation">
+    1. Go to **Edit > Preferences**
+    2. Check **Create m3u for playlists**
+    3. Click **Save**
+  </Step>
+
+  <Step title="Download a playlist">
+    When you download a playlist, MegaDownloader automatically creates a `playlist.m3u` file containing all downloaded items.
+
+    The M3U creator intelligently filters files based on download mode (`MainPanel.java:263-323`):
+    - Audio mode: Only includes `.mp3`, `.m4a`, `.opus`, `.wav`, `.flac`, `.aac`
+    - Video mode: Only includes `.mp4`, `.webm`, `.mkv`, `.avi`, `.flv`, `.mov`
+  </Step>
+</Steps>
+
+## Keyboard Shortcuts
+
+MegaDownloader supports several keyboard shortcuts for faster navigation:
+
+- **Enter** (on login screen): Submit login form
+- **Escape**: Exit the application or return to previous panel
+- **Double-click** (in Media Manager): Play selected file
+
+## Filtering and Searching Media
+
+In the Manage Media panel:
+
+<Steps>
+  <Step title="Filter by type">
+    Use the dropdown at the top-right to filter:
+    - **All files**: Shows everything
+    - **Video**: Only video files (.mp4, .webm, .mkv, etc.)
+    - **Audio**: Only audio files (.mp3, .m4a, .opus, etc.)
+  </Step>
+
+  <Step title="Search by filename">
+    Type in the search field to filter files in real-time by name. The filter is case-insensitive and searches as you type (`ManageMediaPanel.java:284-307`).
+  </Step>
+
+  <Step title="Sort columns">
+    Click any column header to sort the table:
+    - File Name
+    - Type (Video/Audio)
+    - Size
+    - Date Modified
+    - Source (Local/Server/Both)
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<Tip>
+If you encounter issues while using MegaDownloader:
+
+**Download fails immediately:**
+- Verify the yt-dlp path in Preferences
+- Check that the video URL is valid and accessible
+- Ensure you have write permissions to the download directory
+
+**Audio extraction fails:**
+- Confirm FFmpeg is installed and located in the yt-dlp directory
+- Add `ffmpegPath` to config.txt if FFmpeg is elsewhere
+- Check console output for detailed FFmpeg errors
+
+**Progress bar doesn't update:**
+- This is normal for very small files
+- yt-dlp may not output progress for certain formats
+- The download is still running in the background
+
+**Can't play downloaded files:**
+- Ensure you have a default media player installed
+- Check that the file actually exists in the download directory
+- Try opening the file manually from your file explorer
+</Tip>
+
+## Next Steps
+
+Now that you've mastered the basics:
+
+- Explore the [User Guide](/guides/downloading-media) for detailed information on all capabilities
+- Learn about [Configuration](/configuration/settings) options to customize your experience
+- Check the [API Reference](/api/overview) if you're interested in extending the application
+
+<Note>
+MegaDownloader automatically saves your login session when "Remember me" is checked. On next launch, it will attempt auto-login using your saved token (`LoginForm.java:265-279`).
 </Note>

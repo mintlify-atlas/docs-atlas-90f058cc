@@ -1,0 +1,500 @@
+---
+title: ApiClient Reference
+description: Complete reference for the ApiClient class and all public methods
+---
+
+## Overview
+
+The `ApiClient` class provides a type-safe Java interface for all backend API operations. It handles HTTP communication, JSON serialization, and authentication token management.
+
+**Location:** `src/main/java/com/borjaalmazan/entrega1_1/apiManager/ApiClient.java`
+
+## Constructor
+
+```java
+public ApiClient(String baseUrl)
+```
+
+<ParamField path="baseUrl" type="String" required>
+  The base URL of the API server (e.g., `https://api.example.com`)
+</ParamField>
+
+**Example:**
+```java
+ApiClient client = new ApiClient("https://dimedianet-backend.azurewebsites.net");
+```
+
+---
+
+## Authentication Methods
+
+### login()
+
+Authenticates a user and returns a JWT token.
+
+```java
+public String login(String email, String password) throws Exception
+```
+
+<ParamField path="email" type="String" required>
+  User's email address
+</ParamField>
+
+<ParamField path="password" type="String" required>
+  User's password (plain text)
+</ParamField>
+
+<ResponseField name="return" type="String">
+  JWT token for authenticated requests. The method checks for `token`, `access_token`, or `jwt` fields in the response.
+</ResponseField>
+
+**HTTP Request:**
+- **Method:** POST
+- **Endpoint:** `/api/Auth/login`
+- **Content-Type:** `application/json`
+
+**Throws:**
+- `IOException` - If login fails (e.g., invalid credentials, network error)
+- `Exception` - For other errors (JSON parsing, etc.)
+
+**Example:**
+```java
+try {
+    ApiClient client = new ApiClient("https://api.example.com");
+    String jwt = client.login("user@example.com", "myPassword123");
+    System.out.println("Logged in successfully. Token: " + jwt);
+} catch (IOException e) {
+    System.err.println("Login failed: " + e.getMessage());
+}
+```
+
+---
+
+## User Methods
+
+### getMe()
+
+Retrieves the current authenticated user's profile.
+
+```java
+public Usuari getMe(String jwt) throws Exception
+```
+
+<ParamField path="jwt" type="String" required>
+  JWT authentication token from login()
+</ParamField>
+
+<ResponseField name="return" type="Usuari">
+  User object containing profile information
+</ResponseField>
+
+**HTTP Request:**
+- **Method:** GET
+- **Endpoint:** `/api/users/me`
+- **Authorization:** Bearer token
+
+**Example:**
+```java
+Usuari user = client.getMe(jwt);
+System.out.println("Welcome, " + user.nickName + "!");
+System.out.println("Email: " + user.email);
+System.out.println("User ID: " + user.id);
+```
+
+### getNickName()
+
+Retrieves a user's nickname by their ID.
+
+```java
+public String getNickName(int id, String jwt) throws Exception
+```
+
+<ParamField path="id" type="int" required>
+  The user ID
+</ParamField>
+
+<ParamField path="jwt" type="String" required>
+  JWT authentication token
+</ParamField>
+
+<ResponseField name="return" type="String">
+  The user's nickname. Handles both JSON and plain text responses.
+</ResponseField>
+
+**HTTP Request:**
+- **Method:** GET
+- **Endpoint:** `/api/users/{id}/nickname`
+
+**Example:**
+```java
+String nickname = client.getNickName(42, jwt);
+System.out.println("User 42's nickname: " + nickname);
+```
+
+---
+
+## Media Retrieval Methods
+
+### getAllMedia()
+
+Retrieves all media files from the server.
+
+```java
+public List<Media> getAllMedia(String jwt) throws Exception
+```
+
+<ParamField path="jwt" type="String" required>
+  JWT authentication token
+</ParamField>
+
+<ResponseField name="return" type="List<Media>">
+  List of all media objects in the system
+</ResponseField>
+
+**HTTP Request:**
+- **Method:** GET
+- **Endpoint:** `/api/files/all`
+
+**Example:**
+```java
+List<Media> allMedia = client.getAllMedia(jwt);
+for (Media m : allMedia) {
+    System.out.println(m.mediaFileName + " uploaded by user " + m.userId);
+}
+```
+
+### getMyMedia()
+
+Retrieves media files uploaded by the current user.
+
+```java
+public List<Media> getMyMedia(String jwt) throws Exception
+```
+
+<ParamField path="jwt" type="String" required>
+  JWT authentication token
+</ParamField>
+
+<ResponseField name="return" type="List<Media>">
+  List of media objects owned by the authenticated user
+</ResponseField>
+
+**HTTP Request:**
+- **Method:** GET
+- **Endpoint:** `/api/files/me`
+
+**Example:**
+```java
+List<Media> myMedia = client.getMyMedia(jwt);
+System.out.println("You have " + myMedia.size() + " media files");
+```
+
+### getMediaByUser()
+
+Retrieves media files uploaded by a specific user.
+
+```java
+public List<Media> getMediaByUser(int userId, String jwt) throws Exception
+```
+
+<ParamField path="userId" type="int" required>
+  The user ID to query
+</ParamField>
+
+<ParamField path="jwt" type="String" required>
+  JWT authentication token
+</ParamField>
+
+<ResponseField name="return" type="List<Media>">
+  List of media objects uploaded by the specified user
+</ResponseField>
+
+**HTTP Request:**
+- **Method:** GET
+- **Endpoint:** `/api/files/user/{userId}`
+
+### getMediaAddedSince()
+
+Retrieves media files added after a specific timestamp.
+
+```java
+public List<Media> getMediaAddedSince(OffsetDateTime from, String jwt) throws Exception
+public List<Media> getMediaAddedSince(String isoFrom, String jwt) throws Exception
+```
+
+<ParamField path="from" type="OffsetDateTime | String" required>
+  ISO-8601 timestamp (e.g., `2025-11-18T12:00:00Z`). Accepts either `OffsetDateTime` object or String.
+</ParamField>
+
+<ParamField path="jwt" type="String" required>
+  JWT authentication token
+</ParamField>
+
+<ResponseField name="return" type="List<Media>">
+  List of media objects added since the specified timestamp
+</ResponseField>
+
+**HTTP Request:**
+- **Method:** GET
+- **Endpoint:** `/api/files/added-since?from={timestamp}&container={container}`
+
+<Note>
+This method is used by the polling component to sync new media files periodically.
+</Note>
+
+**Example:**
+```java
+// Using String
+List<Media> newMedia = client.getMediaAddedSince("2025-11-18T12:00:00Z", jwt);
+
+// Using OffsetDateTime
+OffsetDateTime lastCheck = OffsetDateTime.now().minusHours(1);
+List<Media> recentMedia = client.getMediaAddedSince(lastCheck, jwt);
+```
+
+### listBlobs()
+
+Lists all blobs in the default container.
+
+```java
+public String listBlobs(String jwt) throws Exception
+```
+
+<ParamField path="jwt" type="String" required>
+  JWT authentication token
+</ParamField>
+
+<ResponseField name="return" type="String">
+  Raw JSON response containing blob list
+</ResponseField>
+
+**HTTP Request:**
+- **Method:** GET
+- **Endpoint:** `/api/files?container=dimedianetblobs`
+
+---
+
+## Media Upload/Download Methods
+
+### download()
+
+Downloads a media file by ID and saves it to disk.
+
+```java
+public void download(int id, File destFile, String jwt) throws Exception
+```
+
+<ParamField path="id" type="int" required>
+  The media ID to download
+</ParamField>
+
+<ParamField path="destFile" type="File" required>
+  Destination file path where the media will be saved
+</ParamField>
+
+<ParamField path="jwt" type="String" required>
+  JWT authentication token
+</ParamField>
+
+**HTTP Request:**
+- **Method:** GET
+- **Endpoint:** `/api/files/{id}?container=dimedianetblobs`
+- **Response:** Binary stream
+
+**Throws:**
+- `FileNotFoundException` - If media with the specified ID is not found (404)
+- `IOException` - For other download errors
+
+**Example:**
+```java
+File outputFile = new File("/downloads/video.mp4");
+try {
+    client.download(123, outputFile, jwt);
+    System.out.println("Downloaded to: " + outputFile.getAbsolutePath());
+} catch (FileNotFoundException e) {
+    System.err.println("Media not found: " + e.getMessage());
+}
+```
+
+### uploadFileMultipart()
+
+Uploads a file to the server using multipart/form-data encoding.
+
+```java
+public String uploadFileMultipart(File file, String downloadedFromUrl, String jwt) throws Exception
+```
+
+<ParamField path="file" type="File" required>
+  The file to upload
+</ParamField>
+
+<ParamField path="downloadedFromUrl" type="String">
+  Optional URL indicating where the file was originally downloaded from
+</ParamField>
+
+<ParamField path="jwt" type="String" required>
+  JWT authentication token
+</ParamField>
+
+<ResponseField name="return" type="String">
+  Raw JSON response from server (typically contains uploaded media metadata)
+</ResponseField>
+
+**HTTP Request:**
+- **Method:** POST
+- **Endpoint:** `/api/files/upload`
+- **Content-Type:** `multipart/form-data`
+- **Form Fields:**
+  - `file` - The binary file data
+  - `downloadedFromUrl` - Optional source URL
+  - `container` - Blob container name (`dimedianetblobs`)
+
+**Example:**
+```java
+File videoFile = new File("/path/to/video.mp4");
+String sourceUrl = "https://youtube.com/watch?v=example";
+
+try {
+    String response = client.uploadFileMultipart(videoFile, sourceUrl, jwt);
+    System.out.println("Upload successful: " + response);
+} catch (IOException e) {
+    System.err.println("Upload failed: " + e.getMessage());
+}
+```
+
+---
+
+## Media Model
+
+The `Media` class represents a media file in the system.
+
+**Location:** `src/main/java/com/borjaalmazan/entrega1_1/apiManager/Media.java`
+
+```java
+public class Media {
+    @JsonProperty("id")
+    public int id;
+    
+    @JsonProperty("userId")
+    public int userId;
+    
+    @JsonProperty("downloadedFromUrl")
+    public String downloadedFromUrl;
+    
+    @JsonProperty("mediaFileName")
+    public String mediaFileName;
+    
+    @JsonProperty("mediaMimeType")
+    public String mediaMimeType;
+    
+    @JsonProperty("blobNameGuid")
+    public String blobNameGuid;
+    
+    @JsonProperty("blobUrl")
+    public String blobUrl;
+}
+```
+
+<ResponseField name="id" type="int">
+  Unique media identifier
+</ResponseField>
+
+<ResponseField name="userId" type="int">
+  ID of the user who uploaded the media
+</ResponseField>
+
+<ResponseField name="downloadedFromUrl" type="String">
+  Original source URL (if applicable)
+</ResponseField>
+
+<ResponseField name="mediaFileName" type="String">
+  Original filename of the uploaded media
+</ResponseField>
+
+<ResponseField name="mediaMimeType" type="String">
+  MIME type (e.g., `video/mp4`, `image/jpeg`)
+</ResponseField>
+
+<ResponseField name="blobNameGuid" type="String">
+  Unique blob identifier in Azure Storage
+</ResponseField>
+
+<ResponseField name="blobUrl" type="String">
+  Direct URL to access the blob
+</ResponseField>
+
+---
+
+## Configuration
+
+### Default Settings
+
+```java
+private final String defaultBlobContainer = "dimedianetblobs";
+```
+
+**Timeouts:**
+- Connection timeout: 10 seconds
+- Request timeout: 30 seconds
+
+### Custom HttpClient
+
+The client is created with:
+```java
+this.client = HttpClient.newBuilder()
+    .connectTimeout(Duration.ofSeconds(10))
+    .build();
+```
+
+---
+
+## Error Handling
+
+All methods throw `Exception`. Common error patterns:
+
+<CodeGroup>
+```java Login Error
+try {
+    String jwt = client.login(email, password);
+} catch (IOException e) {
+    // "Login failed: 401 -> Invalid credentials"
+    handleAuthError(e);
+}
+```
+
+```java Download Error
+try {
+    client.download(mediaId, file, jwt);
+} catch (FileNotFoundException e) {
+    // "Media with id 123 not found (404)."
+    System.err.println("Media not found");
+} catch (IOException e) {
+    // "downloadById failed: 500"
+    System.err.println("Download error: " + e.getMessage());
+}
+```
+
+```java Network Error
+try {
+    List<Media> media = client.getAllMedia(jwt);
+} catch (Exception e) {
+    // Connection timeout, JSON parsing error, etc.
+    logger.error("API call failed", e);
+}
+```
+</CodeGroup>
+
+<Warning>
+Always implement proper exception handling. Network errors, authentication failures, and server errors can occur at any time.
+</Warning>
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    JWT token management and user models
+  </Card>
+  <Card title="API Overview" icon="book" href="/api/overview">
+    High-level API architecture and flow
+  </Card>
+</CardGroup>

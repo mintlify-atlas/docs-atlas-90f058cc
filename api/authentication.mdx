@@ -1,0 +1,560 @@
+---
+title: Authentication & JWT Handling
+description: Learn how MegaDownloader handles user authentication, JWT tokens, and session management
+---
+
+## Overview
+
+MegaDownloader uses JWT (JSON Web Token) based authentication for secure communication with the backend API. The authentication system handles login, token storage, and automatic session restoration.
+
+## Authentication Flow
+
+<Steps>
+  <Step title="User Login">
+    User enters email and password in the `LoginForm` UI
+  </Step>
+  <Step title="API Authentication">
+    Credentials are sent to `/api/Auth/login` endpoint via `ApiClient.login()`
+  </Step>
+  <Step title="Token Receipt">
+    Server validates credentials and returns a JWT token
+  </Step>
+  <Step title="Token Storage">
+    Token is stored locally using Java Preferences API (optional "Remember Me")
+  </Step>
+  <Step title="Authenticated Requests">
+    Token is included in all subsequent API requests as a Bearer token
+  </Step>
+</Steps>
+
+---
+
+## Login Process
+
+### API Method
+
+The `ApiClient.login()` method handles authentication:
+
+```java
+public String login(String email, String password) throws Exception {
+    Map<String, Object> body = Map.of("email", email, "password", password);
+    String json = mapper.writeValueAsString(body);
+    
+    HttpRequest req = requestBuilder("/api/Auth/login", null)
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(json))
+            .build();
+    
+    HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+    
+    if (resp.statusCode() / 100 == 2) {
+        var node = mapper.readTree(resp.body());
+        String token = null;
+        
+        // Check multiple possible token field names
+        if (node.has("token")) {
+            token = node.get("token").asText();
+        } else if (node.has("access_token")) {
+            token = node.get("access_token").asText();
+        } else if (node.has("jwt")) {
+            token = node.get("jwt").asText();
+        }
+        
+        if (token != null) {
+            return token;
+        } else {
+            return resp.body();
+        }
+    } else {
+        throw new IOException("Login failed: " + resp.statusCode() + " -> " + resp.body());
+    }
+}
+```
+
+**Location:** `src/main/java/com/borjaalmazan/entrega1_1/apiManager/ApiClient.java:47`
+
+<Note>
+The login method accepts multiple token field names (`token`, `access_token`, `jwt`) for compatibility with different backend implementations.
+</Note>
+
+### Request Format
+
+**HTTP Request:**
+```http
+POST /api/Auth/login HTTP/1.1
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "myPassword123"
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Error Response (401 Unauthorized):**
+```json
+{
+  "error": "Invalid credentials"
+}
+```
+
+---
+
+## JWT Token Usage
+
+### Adding Token to Requests
+
+All authenticated requests include the JWT token as a Bearer token in the `Authorization` header:
+
+```java
+private HttpRequest.Builder requestBuilder(String path, String jwt) {
+    HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(baseUrl + path))
+            .timeout(Duration.ofSeconds(30));
+    
+    if (jwt != null && !jwt.isBlank()) {
+        b.header("Authorization", "Bearer " + jwt);
+    }
+    
+    return b;
+}
+```
+
+**Example Authenticated Request:**
+```http
+GET /api/users/me HTTP/1.1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### Usage in Code
+
+```java
+// Login and get token
+ApiClient client = new ApiClient("https://api.example.com");
+String jwt = client.login("user@example.com", "password");
+
+// Use token for authenticated requests
+Usuari user = client.getMe(jwt);
+List<Media> myMedia = client.getMyMedia(jwt);
+String nickname = client.getNickName(42, jwt);
+```
+
+---
+
+## Token Storage
+
+The `LoginForm` class uses Java's Preferences API to store tokens locally for "Remember Me" functionality.
+
+**Location:** `src/main/java/com/borjaalmazan/entrega1_1/LoginForm.java`
+
+### Saving Token
+
+```java
+private void saveToken(String email, String token) {
+    prefs.put("auth_token", token);
+    prefs.put("user_email", email);
+}
+```
+
+Called after successful login if the "Remember me" checkbox is selected:
+
+```java
+if (tglRemember.isSelected()) {
+    saveToken(email, token);
+}
+```
+
+### Token Validation
+
+On application startup, stored tokens are validated:
+
+```java
+public boolean checkAutoLogin() {
+    String savedToken = prefs.get("auth_token", null);
+    String savedEmail = prefs.get("user_email", null);
+    
+    if (savedToken != null && savedEmail != null) {
+        if (mediaPollingComponent.checkToken(savedToken)) {
+            this.token = savedToken;
+            mediaPollingComponent.setToken(savedToken);
+            return true;
+        } else {
+            clearToken();
+        }
+    }
+    return false;
+}
+```
+
+### Clearing Token
+
+```java
+public void clearToken() {
+    prefs.remove("auth_token");
+    prefs.remove("user_email");
+    txtEmail.setText("");
+    txtPassword.setText("");
+}
+```
+
+---
+
+## User Model
+
+The `Usuari` class represents authenticated user data.
+
+**Location:** `src/main/java/com/borjaalmazan/entrega1_1/apiManager/Usuari.java`
+
+```java
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class Usuari {
+    @JsonProperty("id")
+    public int id;
+    
+    @JsonProperty("email")
+    public String email = "";
+    
+    @JsonProperty("passwordHash")
+    public String passwordHash;
+    
+    @JsonProperty("nickName")
+    public String nickName;
+    
+    @JsonProperty("picture")
+    public byte[] picture;  // Base64 decoded by Jackson
+    
+    @JsonProperty("pictureFileName")
+    public String pictureFileName;
+    
+    @JsonProperty("dateOfBirth")
+    public String dateOfBirth;  // ISO-8601 date string
+    
+    @JsonProperty("registeredAt")
+    public String registeredAt;  // ISO-8601 timestamp
+}
+```
+
+### Field Descriptions
+
+<ResponseField name="id" type="int">
+  Unique user identifier
+</ResponseField>
+
+<ResponseField name="email" type="String">
+  User's email address (used for login)
+</ResponseField>
+
+<ResponseField name="passwordHash" type="String">
+  Hashed password (never store plain text passwords)
+</ResponseField>
+
+<ResponseField name="nickName" type="String">
+  Display name for the user
+</ResponseField>
+
+<ResponseField name="picture" type="byte[]">
+  User's profile picture (Base64 decoded from JSON)
+</ResponseField>
+
+<ResponseField name="pictureFileName" type="String">
+  Original filename of the profile picture
+</ResponseField>
+
+<ResponseField name="dateOfBirth" type="String">
+  User's birth date in ISO-8601 format (e.g., `2000-01-15`)
+</ResponseField>
+
+<ResponseField name="registeredAt" type="String">
+  Account creation timestamp in ISO-8601 format (e.g., `2025-01-01T12:00:00Z`)
+</ResponseField>
+
+<Note>
+The `@JsonIgnoreProperties(ignoreUnknown = true)` annotation allows the API to add new fields without breaking the client.
+</Note>
+
+### Retrieving User Profile
+
+```java
+Usuari user = client.getMe(jwt);
+
+System.out.println("User ID: " + user.id);
+System.out.println("Email: " + user.email);
+System.out.println("Nickname: " + user.nickName);
+System.out.println("Registered: " + user.registeredAt);
+
+if (user.picture != null) {
+    System.out.println("Profile picture: " + user.picture.length + " bytes");
+}
+```
+
+---
+
+## Login UI Implementation
+
+The `LoginForm` class provides the graphical login interface.
+
+### Key Features
+
+<CardGroup cols={2}>
+  <Card title="Email Validation" icon="envelope-circle-check">
+    Real-time regex validation for email format
+  </Card>
+  <Card title="Remember Me" icon="clock-rotate-left">
+    Optional token persistence using Preferences API
+  </Card>
+  <Card title="Auto-Login" icon="arrow-right-to-bracket">
+    Automatic authentication on app restart
+  </Card>
+  <Card title="Async Authentication" icon="spinner">
+    Non-blocking login using SwingWorker
+  </Card>
+</CardGroup>
+
+### Email Validation
+
+```java
+private boolean validateEmail() {
+    String email = txtEmail.getText();
+    if (email.isEmpty()) {
+        txtEmail.setBorder(defaultBorder);
+        return false;
+    }
+    
+    // Email regex pattern
+    Pattern pattern = Pattern.compile("^[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,}$");
+    if (!pattern.matcher(email).matches()) {
+        txtEmail.setBorder(BorderFactory.createLineBorder(new Color(220, 53, 69)));
+        return false;
+    }
+    
+    txtEmail.setBorder(defaultBorder);
+    return true;
+}
+```
+
+### Async Login with SwingWorker
+
+The login process runs in a background thread to avoid freezing the UI:
+
+```java
+private void callLoginAPI(String email, String password) {
+    btnLogin.setEnabled(false);
+    btnLogin.setText("Logging in...");
+    setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+    
+    SwingWorker<Boolean, Void> worker = new SwingWorker<Boolean, Void>() {
+        @Override
+        protected Boolean doInBackground() throws Exception {
+            return mediaPollingComponent.login(email, password);
+        }
+        
+        @Override
+        protected void done() {
+            setCursor(Cursor.getDefaultCursor());
+            btnLogin.setEnabled(true);
+            btnLogin.setText("Login");
+            
+            try {
+                boolean success = get();
+                
+                if (success) {
+                    token = mediaPollingComponent.getToken();
+                    
+                    if (tglRemember.isSelected()) {
+                        saveToken(email, token);
+                    }
+                    
+                    mainFrame.showMainPanel();
+                } else {
+                    JOptionPane.showMessageDialog(LoginForm.this,
+                            "Login failed. Please check your credentials.",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(LoginForm.this,
+                        "Connection error: " + e.getMessage(),
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    };
+    
+    worker.execute();
+}
+```
+
+**Location:** `src/main/java/com/borjaalmazan/entrega1_1/LoginForm.java:194`
+
+---
+
+## Security Considerations
+
+<Warning>
+**Important Security Notes:**
+
+- Passwords are sent over HTTPS only - never use HTTP in production
+- JWT tokens should be treated as sensitive credentials
+- Tokens stored locally can be accessed by other applications
+- Implement token expiration and refresh mechanisms
+- Never log or display JWT tokens in production
+</Warning>
+
+### Best Practices
+
+<Accordion title="Use HTTPS Only">
+```java
+// Always use HTTPS in production
+ApiClient client = new ApiClient("https://api.example.com");
+
+// NEVER use HTTP for authentication
+// ApiClient client = new ApiClient("http://api.example.com"); ❌
+```
+</Accordion>
+
+<Accordion title="Handle Token Expiration">
+```java
+try {
+    Usuari user = client.getMe(jwt);
+} catch (IOException e) {
+    if (e.getMessage().contains("401")) {
+        // Token expired - prompt for re-login
+        loginForm.clearToken();
+        loginForm.setVisible(true);
+    }
+}
+```
+</Accordion>
+
+<Accordion title="Validate Stored Tokens">
+```java
+public boolean checkAutoLogin() {
+    String savedToken = prefs.get("auth_token", null);
+    
+    if (savedToken != null) {
+        // Validate token before using it
+        if (mediaPollingComponent.checkToken(savedToken)) {
+            return true;
+        } else {
+            // Token invalid - clear it
+            clearToken();
+        }
+    }
+    return false;
+}
+```
+</Accordion>
+
+---
+
+## Example: Complete Authentication Flow
+
+```java
+import com.borjaalmazan.entrega1_1.apiManager.ApiClient;
+import com.borjaalmazan.entrega1_1.apiManager.Usuari;
+import java.util.prefs.Preferences;
+
+public class AuthExample {
+    private static final String API_URL = "https://api.example.com";
+    private ApiClient client;
+    private Preferences prefs;
+    private String jwt;
+    
+    public AuthExample() {
+        client = new ApiClient(API_URL);
+        prefs = Preferences.userNodeForPackage(AuthExample.class);
+    }
+    
+    public boolean authenticate(String email, String password, boolean remember) {
+        try {
+            // Step 1: Login
+            jwt = client.login(email, password);
+            System.out.println("Login successful!");
+            
+            // Step 2: Get user profile
+            Usuari user = client.getMe(jwt);
+            System.out.println("Welcome, " + user.nickName + "!");
+            
+            // Step 3: Save token if requested
+            if (remember) {
+                prefs.put("auth_token", jwt);
+                prefs.put("user_email", email);
+                System.out.println("Credentials saved for auto-login");
+            }
+            
+            return true;
+        } catch (Exception e) {
+            System.err.println("Authentication failed: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    public boolean autoLogin() {
+        String savedToken = prefs.get("auth_token", null);
+        String savedEmail = prefs.get("user_email", null);
+        
+        if (savedToken == null || savedEmail == null) {
+            return false;
+        }
+        
+        try {
+            // Validate token by fetching user profile
+            Usuari user = client.getMe(savedToken);
+            jwt = savedToken;
+            System.out.println("Auto-login successful for " + user.email);
+            return true;
+        } catch (Exception e) {
+            System.err.println("Auto-login failed: " + e.getMessage());
+            clearCredentials();
+            return false;
+        }
+    }
+    
+    public void clearCredentials() {
+        prefs.remove("auth_token");
+        prefs.remove("user_email");
+        jwt = null;
+        System.out.println("Credentials cleared");
+    }
+    
+    public String getToken() {
+        return jwt;
+    }
+    
+    public static void main(String[] args) {
+        AuthExample auth = new AuthExample();
+        
+        // Try auto-login first
+        if (!auth.autoLogin()) {
+            // Manual login if auto-login fails
+            boolean success = auth.authenticate(
+                "user@example.com",
+                "password123",
+                true  // Remember me
+            );
+            
+            if (success) {
+                System.out.println("JWT Token: " + auth.getToken());
+            }
+        }
+    }
+}
+```
+
+---
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="ApiClient Reference" icon="code" href="/api/api-client">
+    Complete API method documentation
+  </Card>
+  <Card title="API Overview" icon="book" href="/api/overview">
+    High-level architecture and endpoints
+  </Card>
+</CardGroup>

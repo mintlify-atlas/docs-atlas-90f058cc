@@ -1,0 +1,568 @@
+---
+title: Troubleshooting
+description: Solutions to common issues and problems in MegaDownloader
+---
+
+## Common Issues and Solutions
+
+This guide covers the most frequently encountered problems in MegaDownloader and their solutions, based on real issues documented in the source code.
+
+## FFmpeg Issues
+
+### FFmpeg Not Found Error
+
+**Problem:** When attempting audio extraction, yt-dlp reports "ffprobe and ffmpeg not found"
+
+**Symptoms:**
+- Warning dialog appears when selecting "Audio only"
+- Download fails with FFmpeg-related errors
+- Console shows: "FFmpeg not found (auto-detect or manual)"
+
+**Solution:**
+
+MegaDownloader implements a hybrid FFmpeg detection system that automatically finds FFmpeg or falls back to manual configuration.
+
+<Steps>
+  <Step title="Option 1: Automatic Detection (Recommended)">
+    Place FFmpeg executables in the same directory as yt-dlp:
+    
+    1. Download FFmpeg from https://www.gyan.dev/ffmpeg/builds/
+    2. Extract `ffmpeg.exe` and `ffprobe.exe`
+    3. Copy both files to your yt-dlp directory
+    
+    **Example structure:**
+    ```
+    C:\Tools\yt-dlp\
+    ├── yt-dlp.exe
+    ├── ffmpeg.exe
+    └── ffprobe.exe
+    ```
+    
+    <Tip>
+    This method requires no configuration - FFmpeg is detected automatically on startup.
+    </Tip>
+  </Step>
+  
+  <Step title="Option 2: Manual Configuration">
+    If FFmpeg is in a different location, add it to `config.txt`:
+    
+    ```txt
+    ffmpegPath:"C:\path\to\ffmpeg\folder"
+    ```
+    
+    <Warning>
+    Use the directory path containing the executables, not the path to ffmpeg.exe itself.
+    </Warning>
+  </Step>
+  
+  <Step title="Verify Setup">
+    Restart MegaDownloader and check the console output:
+    ```
+    FFmpeg autodetected: C:\Tools\yt-dlp
+    ```
+    or
+    ```
+    FFmpeg found at manual path: C:\Tools\ffmpeg\bin
+    ```
+  </Step>
+</Steps>
+
+**Implementation Reference:**
+
+From `MainPanel.java` (lines 222-254), the detection logic checks both locations:
+
+```java
+private String getFfmpegLocation() {
+    // First: Auto-detect in yt-dlp directory
+    String ytdlpPath = getYtDlpPath();
+    File ytdlpDir = new File(ytdlpPath).getParentFile();
+    File ffmpegExe = new File(ytdlpDir, "ffmpeg.exe");
+    File ffprobeExe = new File(ytdlpDir, "ffprobe.exe");
+    
+    if (ffmpegExe.exists() && ffprobeExe.exists()) {
+        return ytdlpDir.getAbsolutePath();
+    }
+    
+    // Second: Check manual configuration
+    String manualPath = preferencesPanel.getFfmpegPath();
+    // ... validation logic
+}
+```
+
+### Audio Extraction Fails
+
+**Problem:** Download completes but no audio file is created
+
+**Common Causes:**
+
+<AccordionGroup>
+  <Accordion title="Missing FFmpeg Components" icon="puzzle-piece">
+    **Symptom:** Error messages about missing codecs or libraries
+    
+    **Solution:** Download the "full" FFmpeg build instead of "essentials"
+    ```
+    https://www.gyan.dev/ffmpeg/builds/
+    ```
+  </Accordion>
+  
+  <Accordion title="Incorrect File Permissions" icon="lock">
+    **Symptom:** "Access denied" or permission errors
+    
+    **Solution:**
+    - Ensure ffmpeg.exe and ffprobe.exe are not blocked by antivirus
+    - Right-click each file → Properties → Unblock
+    - Run MegaDownloader as administrator if needed
+  </Accordion>
+  
+  <Accordion title="Path Issues" icon="route">
+    **Symptom:** FFmpeg detected but extraction still fails
+    
+    **Solution:**
+    - Verify paths don't contain special characters or spaces
+    - Use absolute paths, not relative paths
+    - Check that both ffmpeg.exe and ffprobe.exe exist in the same directory
+  </Accordion>
+</AccordionGroup>
+
+## Playlist Issues
+
+### M3U Playlist Contains Duplicate Files
+
+**Problem:** When downloading audio from playlists, the M3U file includes both .webm (intermediate) and .mp3 (final) files
+
+**Impact:** Playlist players attempt to play both versions, causing duplicates
+
+**Solution:**
+
+This issue has been **solved** in the current version. MegaDownloader now filters files based on download mode:
+
+- **Audio mode:** Only includes audio extensions (.mp3, .m4a, .opus, .wav, .flac, .aac)
+- **Video mode:** Only includes video extensions (.mp4, .webm, .mkv, .avi, .flv, .mov)
+
+**Implementation:**
+
+From `MainPanel.java` (lines 269-287):
+
+```java
+private void createM3UFile(List<String> files, String downloadDirectory, boolean audioOnly) {
+    List<String> filteredFiles = new ArrayList<>();
+    for (String filename : files) {
+        String lowerFilename = filename.toLowerCase();
+        if (audioOnly) {
+            // Only include audio files
+            if (lowerFilename.endsWith(".mp3") || lowerFilename.endsWith(".m4a")
+                || lowerFilename.endsWith(".opus") || lowerFilename.endsWith(".wav")
+                || lowerFilename.endsWith(".flac") || lowerFilename.endsWith(".aac")) {
+                filteredFiles.add(filename);
+            }
+        } else {
+            // Only include video files
+            if (lowerFilename.endsWith(".mp4") || lowerFilename.endsWith(".webm")
+                || lowerFilename.endsWith(".mkv") || lowerFilename.endsWith(".avi")
+                || lowerFilename.endsWith(".flv") || lowerFilename.endsWith(".mov")) {
+                filteredFiles.add(filename);
+            }
+        }
+    }
+}
+```
+
+<Note>
+If you're still seeing duplicates, ensure you're using the latest version of MegaDownloader.
+</Note>
+
+## Window and UI Issues
+
+### Window Cannot Be Dragged
+
+**Problem:** Using `setUndecorated(true)` removes window controls and dragging capability
+
+**Solution:**
+
+MegaDownloader implements custom mouse listeners for window dragging. The window can be dragged from anywhere on the content pane.
+
+**Implementation:**
+
+The solution tracks initial click position and calculates window movement:
+
+```java
+// Mouse pressed: record initial position
+private Point initialClick;
+
+panel.addMouseListener(new MouseAdapter() {
+    public void mousePressed(MouseEvent e) {
+        initialClick = e.getPoint();
+    }
+});
+
+// Mouse dragged: calculate new position
+panel.addMouseMotionListener(new MouseMotionAdapter() {
+    public void mouseDragged(MouseEvent e) {
+        JFrame frame = (JFrame) SwingUtilities.getWindowAncestor(panel);
+        int thisX = frame.getLocation().x;
+        int thisY = frame.getLocation().y;
+        
+        int xMoved = e.getX() - initialClick.x;
+        int yMoved = e.getY() - initialClick.y;
+        
+        int X = thisX + xMoved;
+        int Y = thisY + yMoved;
+        frame.setLocation(X, Y);
+    }
+});
+```
+
+<Tip>
+This is applied to the content pane, enabling dragging from anywhere in the window.
+</Tip>
+
+## Login Issues
+
+### Login Bypass Vulnerability
+
+**Problem:** Users could access Preferences panel and bypass login
+
+**Solution:**
+
+Fixed by changing how panel navigation works:
+
+- Implemented proper panel navigation history
+- Added `goBack()` method to track previous panels
+- Preferences back button now returns to the correct panel
+- Login form must be completed before accessing main features
+
+**Implementation:**
+
+From the completed changes in `README.md` (lines 162-165):
+
+```
+- Login bypass fix — Going to preferences could bypass login, changed how panel navigation works
+- Panel navigation history — Added goBack() method, Preferences back button now returns to the correct panel
+```
+
+### Login Form Validation
+
+**Problem:** Users could submit invalid credentials
+
+**Solution:**
+
+Real-time validation has been implemented:
+
+<AccordionGroup>
+  <Accordion title="Email Validation" icon="envelope">
+    - Real-time regex validation using `DocumentListener`
+    - Red border appears on invalid email format
+    - Visual feedback before submission
+  </Accordion>
+  
+  <Accordion title="Password Validation" icon="key">
+    - Empty password check
+    - Red border feedback on empty field
+    - Prevents submission with missing password
+  </Accordion>
+</AccordionGroup>
+
+### Login UI Improvements
+
+**Fixed issues:**
+
+- **Wait cursor during login:** Shows `WAIT_CURSOR` while processing
+- **Disabled fields:** Input fields disabled during login attempt
+- **Button text changes:** "Login" → "Logging in..."
+- **Success popup removed:** Automatically navigates to main screen
+
+## Speed Limiter Issues
+
+### Speed Limiter Not Working
+
+**Problem:** Download speed limit is not applied
+
+**Checklist:**
+
+<Steps>
+  <Step title="Verify Limiter is Enabled">
+    1. Go to **Edit > Preferences**
+    2. Click the **Limiter** toggle button
+    3. Ensure button is in "pressed" state
+    
+    <Warning>
+    Both the toggle button AND a speed value must be set for the limiter to work.
+    </Warning>
+  </Step>
+  
+  <Step title="Set Speed Value">
+    Use either:
+    - **Slider:** Drag to set speed (1-100,000 KB/s)
+    - **Text field:** Type speed value directly
+    
+    Both controls are synchronized and update each other.
+  </Step>
+  
+  <Step title="Check Console Output">
+    When toggling, console should show:
+    ```
+    Speed limiter enabled: 1000 KB/s
+    ```
+    or
+    ```
+    Speed limiter disabled
+    ```
+  </Step>
+</Steps>
+
+**Implementation:**
+
+From `PreferencesPanel.java` (lines 70-123), the limiter uses dual synchronized controls:
+
+```java
+private void setupSpeedLimiter() {
+    sliderLimiter.setMinimum(1);
+    sliderLimiter.setMaximum(100000);
+    sliderLimiter.setValue(1000);
+    sliderLimiter.setEnabled(false);  // Disabled by default
+    
+    // Slider changes update text field
+    sliderLimiter.addChangeListener(e -> {
+        speedLimitKBps = sliderLimiter.getValue();
+        txtLimiter.setText(speedLimitKBps + " KB/s");
+    });
+    
+    // Text field changes update slider
+    txtLimiter.getDocument().addDocumentListener(new DocumentListener() {
+        private void updateSliderFromText() {
+            String text = txtLimiter.getText().replaceAll("[^0-9]", "");
+            int value = Integer.parseInt(text);
+            value = Math.max(1, Math.min(100000, value));
+            sliderLimiter.setValue(value);
+        }
+    });
+}
+```
+
+### Speed Limiter Values Not Persisting
+
+<Note>
+The speed limiter setting is stored in memory only and is NOT saved to config.txt. You must reconfigure it each session.
+</Note>
+
+**Workaround:**
+
+Set your preferred speed limit each time you start the application, or use custom arguments for persistent settings.
+
+## Configuration Issues
+
+### Configuration Not Saving
+
+**Problem:** Settings are lost when restarting the application
+
+**Solutions:**
+
+<AccordionGroup>
+  <Accordion title="Click Save Button" icon="floppy-disk">
+    **Symptom:** Changed settings but didn't click "Save"
+    
+    **Solution:** Always click the **Save** button in Preferences. Changes are not auto-saved.
+    
+    <Warning>
+    Closing the Preferences panel without clicking Save will discard all changes.
+    </Warning>
+  </Accordion>
+  
+  <Accordion title="File Permissions" icon="shield">
+    **Symptom:** Save button clicked but config.txt not updated
+    
+    **Solution:**
+    - Check write permissions in application directory
+    - Disable antivirus temporarily to test
+    - Ensure config.txt is not marked read-only
+    - Run application as administrator if needed
+  </Accordion>
+  
+  <Accordion title="Working Directory" icon="folder-tree">
+    **Symptom:** config.txt created in unexpected location
+    
+    **Solution:**
+    - config.txt is created in the working directory (where you run the application)
+    - If running from IDE, check your run configuration's working directory
+    - For JAR files, config.txt appears next to the JAR
+  </Accordion>
+</AccordionGroup>
+
+### Invalid Configuration Format
+
+**Problem:** Application doesn't load settings from config.txt
+
+**Common mistakes:**
+
+```txt
+# Wrong - missing quotes
+path:C:\Tools\yt-dlp.exe
+
+# Wrong - spaces around colon
+path : "C:\Tools\yt-dlp.exe"
+
+# Wrong - single quotes
+path:'C:\Tools\yt-dlp.exe'
+
+# Correct
+path:"C:\Tools\yt-dlp.exe"
+```
+
+**Validation:**
+
+<Steps>
+  <Step title="Check Syntax">
+    Format must be: `key:"value"`
+    - No spaces around colon
+    - Double quotes required
+    - One setting per line
+  </Step>
+  
+  <Step title="Verify File Encoding">
+    - Must be plain text (UTF-8 or ASCII)
+    - No BOM (Byte Order Mark)
+    - Use a text editor like Notepad++ to verify
+  </Step>
+  
+  <Step title="Check Console Output">
+    On startup, console shows:
+    ```
+    Loaded ytdlp path from config.txt: C:\Tools\yt-dlp.exe
+    Loaded Download directory from config.txt: C:\Downloads
+    Loaded FFmpeg path from config.txt: C:\Tools\ffmpeg\bin
+    ```
+  </Step>
+</Steps>
+
+## Download Issues
+
+### No URL Error
+
+**Problem:** "Please enter a valid video URL" error when clicking Download
+
+**Causes:**
+- URL field is empty
+- URL field contains placeholder text "Paste Video URL"
+- URL has only whitespace
+
+**Solution:**
+
+1. Paste a valid video URL into the text field
+2. Ensure URL is not the default placeholder text
+3. Common valid URLs:
+   - YouTube: `https://www.youtube.com/watch?v=...`
+   - Vimeo: `https://vimeo.com/...`
+   - Other yt-dlp supported sites
+
+### Configuration Error on Download
+
+**Problem:** "yt-dlp path not configured" error
+
+**Solution:**
+
+<Steps>
+  <Step title="Configure yt-dlp Path">
+    1. Go to **Edit > Preferences**
+    2. Click **Change location**
+    3. Select your `yt-dlp.exe` file
+    4. Click **Save**
+  </Step>
+  
+  <Step title="Verify Configuration">
+    - Path should display in Preferences panel
+    - Should NOT show "Not configured"
+    - Restart application if needed
+  </Step>
+</Steps>
+
+## UI and Display Issues
+
+### Images Not Loading
+
+**Problem:** Banner or GitHub logo shows "Image not found" text
+
+**Causes:**
+- Image resources missing from classpath
+- Incorrect resource path
+- Build/packaging issue
+
+**Expected resource locations:**
+```
+/images/YTDLPBanner.png
+/images/GitHubLogo.png
+```
+
+**Solution:**
+
+1. Verify images exist in `src/main/resources/images/`
+2. Rebuild project: `mvn clean compile`
+3. Check console for resource loading errors
+
+### Progress Bar Not Showing
+
+**Problem:** Download starts but no progress is visible
+
+**Explanation:**
+
+The progress bar is intentionally hidden by default and only appears during active downloads.
+
+**Normal behavior:**
+- Hidden: Initial state
+- Visible: During download
+- Hidden: After download completes
+
+From `MainPanel.java` (lines 381-384):
+```java
+progressBar.setStringPainted(true);
+progressBar.setBounds(290, 380, 220, 30);
+progressBar.setVisible(false);  // Hidden by default
+```
+
+## Getting Help
+
+### Console Output
+
+Most issues can be diagnosed by checking the console output. Key messages to look for:
+
+```bash
+# Configuration loading
+Loaded ytdlp path from config.txt: ...
+Loaded Download directory from config.txt: ...
+Loaded FFmpeg path from config.txt: ...
+
+# FFmpeg detection
+FFmpeg autodetected: ...
+FFmpeg found at manual path: ...
+FFmpeg not found (auto-detect or manual)
+
+# Speed limiter
+Speed limiter enabled: 1000 KB/s
+Speed limiter disabled
+
+# M3U playlist
+M3U playlist created: ... with 5 files
+```
+
+### Report Issues
+
+If you encounter issues not covered in this guide:
+
+1. **Check console output** for error messages
+2. **Verify configuration** in config.txt
+3. **Test yt-dlp manually** to rule out yt-dlp issues
+4. **Document steps to reproduce** the problem
+
+<Tip>
+Many issues are caused by yt-dlp itself rather than MegaDownloader. Test the same URL with yt-dlp from command line to verify.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration Settings" icon="gear" href="/configuration/settings">
+    Review all available configuration options
+  </Card>
+  <Card title="FFmpeg Setup" icon="video" href="/configuration/ffmpeg">
+    Learn more about FFmpeg configuration
+  </Card>
+</CardGroup>

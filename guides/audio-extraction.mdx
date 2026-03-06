@@ -1,0 +1,284 @@
+---
+title: Audio Extraction
+description: Download and extract audio from videos as MP3 files using FFmpeg integration
+---
+
+MegaDownloader can extract audio from videos and save them as MP3 files using yt-dlp's audio extraction feature powered by FFmpeg.
+
+## Audio-Only Checkbox
+
+The main download panel includes an **"Audio only"** checkbox (`audioChk`) that enables audio extraction mode (`MainPanel.java:371-379`).
+
+### Enabling Audio Extraction
+
+<Steps>
+  <Step title="Check the Audio only box">
+    Before clicking Download, check the **Audio only** checkbox next to the Download button.
+
+    The checkbox is located at coordinates (410, 320) in the main panel.
+  </Step>
+
+  <Step title="Paste video URL and download">
+    Paste your video URL and click the Download button as normal.
+
+    The download process will automatically extract only the audio track.
+  </Step>
+
+  <Step title="Audio extraction begins">
+    When audio-only mode is enabled, yt-dlp is invoked with special flags (`MainPanel.java:570-574`):
+
+    ```java
+    if (audioOnly) {
+        command.add("-x");  // Extract audio
+        command.add("--audio-format");
+        command.add("mp3");  // Convert to MP3
+    }
+    ```
+  </Step>
+</Steps>
+
+<Note>
+The `-x` flag tells yt-dlp to extract audio, while `--audio-format mp3` specifies the output format.
+</Note>
+
+## FFmpeg Integration
+
+Audio extraction requires FFmpeg to be installed and accessible to yt-dlp.
+
+### FFmpeg Auto-Detection
+
+MegaDownloader automatically searches for FFmpeg in the same directory as yt-dlp (`MainPanel.java:222-254`):
+
+```java
+private String getFfmpegLocation() {
+    String ytdlpPath = getYtDlpPath();
+    if (ytdlpPath != null) {
+        File ytdlpDir = ytdlpFile.getParentFile();
+        File ffmpegExe = new File(ytdlpDir, "ffmpeg.exe");
+        File ffprobeExe = new File(ytdlpDir, "ffprobe.exe");
+        
+        if (ffmpegExe.exists() && ffprobeExe.exists()) {
+            return ytdlpDir.getAbsolutePath();
+        }
+    }
+}
+```
+
+The auto-detection looks for both:
+- `ffmpeg.exe` - Main FFmpeg executable for audio/video processing
+- `ffprobe.exe` - Media information utility
+
+### Manual FFmpeg Configuration
+
+If auto-detection fails, you can manually specify the FFmpeg path in `config.txt` (`MainPanel.java:239-250`):
+
+```text
+ffmpegPath:"C:\\ffmpeg\\bin"
+```
+
+The manual path is checked if auto-detection doesn't find FFmpeg in the yt-dlp directory.
+
+### FFmpeg Location in Download Command
+
+When FFmpeg is found, its location is passed to yt-dlp (`MainPanel.java:554-557`):
+
+```java
+if (ffmpegLocation != null) {
+    command.add("--ffmpeg-location");
+    command.add(ffmpegLocation);
+}
+```
+
+## Audio Extraction Workflow
+
+Here's what happens when you download with audio-only mode enabled:
+
+<Steps>
+  <Step title="yt-dlp downloads video">
+    yt-dlp first downloads the video file with the best audio quality.
+  </Step>
+
+  <Step title="FFmpeg extracts audio">
+    FFmpeg extracts the audio track from the video container.
+
+    This happens automatically through yt-dlp's integration.
+  </Step>
+
+  <Step title="Conversion to MP3">
+    FFmpeg converts the extracted audio to MP3 format.
+
+    The application specifically requests MP3 output using `--audio-format mp3`.
+  </Step>
+
+  <Step title="Cleanup">
+    yt-dlp removes the original video file, keeping only the MP3.
+
+    The final file is saved with a `.mp3` extension.
+  </Step>
+</Steps>
+
+## FFmpeg Not Found Warning
+
+If you enable audio-only mode but FFmpeg is not detected, you'll see a warning dialog (`MainPanel.java:516-537`):
+
+<Warning>
+**FFmpeg not found! Audio extraction requires FFmpeg.**
+
+Please either:
+1. Place ffmpeg.exe and ffprobe.exe in: `[yt-dlp directory]`
+2. Add `ffmpegPath:"C:\\path\\to\\ffmpeg\\folder"` to config.txt
+
+Continue download anyway?
+</Warning>
+
+You can choose to continue the download, but it may fail if FFmpeg is required for the extraction.
+
+### Setting Up FFmpeg
+
+<Steps>
+  <Step title="Download FFmpeg">
+    Download FFmpeg from the official website or a Windows build.
+
+    You need both `ffmpeg.exe` and `ffprobe.exe`.
+  </Step>
+
+  <Step title="Option 1: Place in yt-dlp directory">
+    Copy `ffmpeg.exe` and `ffprobe.exe` to the same folder as `yt-dlp.exe`.
+
+    MegaDownloader will auto-detect them on next launch.
+  </Step>
+
+  <Step title="Option 2: Configure manual path">
+    Edit `config.txt` and add the FFmpeg directory:
+
+    ```text
+    path:"C:\\Tools\\yt-dlp.exe"
+    downloadDir:"C:\\Users\\YourName\\Downloads"
+    ffmpegPath:"C:\\Tools\\ffmpeg\\bin"
+    ```
+  </Step>
+</Steps>
+
+## Audio Format Details
+
+MegaDownloader currently supports MP3 as the audio format:
+
+### MP3 Specifications
+
+- **Format**: MPEG Layer 3
+- **Container**: `.mp3`
+- **Codec**: Determined by FFmpeg (typically LAME encoder)
+- **Bitrate**: Determined by yt-dlp's best audio selection
+- **Sample Rate**: Preserved from source
+
+### Supported Audio Extensions
+
+The application recognizes the following audio file types (`MainPanel.java:273-277`):
+
+- `.mp3` - MPEG Layer 3
+- `.m4a` - MPEG-4 Audio
+- `.opus` - Opus codec
+- `.wav` - Waveform Audio
+- `.flac` - Free Lossless Audio Codec
+- `.aac` - Advanced Audio Coding
+
+<Note>
+While MegaDownloader can manage various audio formats, the audio extraction feature specifically outputs MP3 files.
+</Note>
+
+## M3U Playlist for Audio
+
+If you have M3U playlist creation enabled in Preferences, MegaDownloader will automatically create a playlist for downloaded audio files (`MainPanel.java:263-323`).
+
+### Audio File Filtering
+
+When `audioOnly` mode is enabled, the M3U playlist includes only audio files (`MainPanel.java:274-278`):
+
+```java
+if (audioOnly) {
+    if (lowerFilename.endsWith(".mp3") || lowerFilename.endsWith(".m4a")
+            || lowerFilename.endsWith(".opus") || lowerFilename.endsWith(".wav")
+            || lowerFilename.endsWith(".flac") || lowerFilename.endsWith(".aac")) {
+        filteredFiles.add(filename);
+    }
+}
+```
+
+### M3U File Location
+
+The playlist is saved as `playlist.m3u` in your download directory (`MainPanel.java:294-299`).
+
+## Progress Tracking for Audio
+
+Audio extraction progress is tracked through yt-dlp's output:
+
+### Extraction Status Messages
+
+The application monitors for extraction-specific output (`MainPanel.java:605`):
+
+```text
+[ExtractAudio] Destination: song.mp3
+```
+
+This message indicates FFmpeg has successfully extracted and converted the audio.
+
+### Progress Bar Updates
+
+The progress bar shows:
+- Download progress during video download phase
+- Continues updating during audio extraction
+- Completes when the final MP3 is ready
+
+## Playing Audio Files
+
+After downloading an audio file:
+
+1. The **"Play Last Downloaded File"** button becomes visible
+2. Clicking it opens the MP3 in your default audio player
+3. The file is opened using Java's Desktop API (`MainPanel.java:704-737`)
+
+<Tip>
+If you have a preferred audio player, you can set it as your system's default for `.mp3` files, and MegaDownloader will use it automatically.
+</Tip>
+
+## Troubleshooting Audio Extraction
+
+<AccordionGroup>
+  <Accordion title="Audio extraction fails silently">
+    **Cause**: FFmpeg not found or not properly configured
+
+    **Solution**: 
+    - Check that `ffmpeg.exe` and `ffprobe.exe` are in the yt-dlp directory
+    - Or add `ffmpegPath` to `config.txt`
+    - Restart MegaDownloader after configuration
+  </Accordion>
+
+  <Accordion title="Download completes but no MP3 file">
+    **Cause**: FFmpeg conversion failed
+
+    **Solution**:
+    - Check console output for FFmpeg error messages
+    - Ensure FFmpeg has write permissions to the download directory
+    - Verify the source video actually has an audio track
+  </Accordion>
+
+  <Accordion title="Audio quality is poor">
+    **Cause**: Source video has low-quality audio
+
+    **Solution**:
+    - yt-dlp automatically selects the best available audio quality
+    - Some videos only have low-bitrate audio available
+    - Try downloading from a different source
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Download Videos" icon="video" href="/guides/downloading-media">
+    Learn how to download full video files
+  </Card>
+  <Card title="Manage Audio Files" icon="folder-music" href="/guides/managing-downloads">
+    Browse and manage your downloaded audio library
+  </Card>
+</CardGroup>

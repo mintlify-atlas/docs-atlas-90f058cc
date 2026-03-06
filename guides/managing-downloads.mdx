@@ -1,0 +1,462 @@
+---
+title: Managing Downloads
+description: Browse, search, filter, and manage your downloaded media files using the media management panel
+---
+
+The Manage Media panel provides a comprehensive interface for browsing, searching, and managing all your downloaded media files, both local and from the server.
+
+## Accessing the Media Manager
+
+Click the **"Manage Media"** button on the main panel to open the media management interface (`MainPanel.java:402-410`).
+
+The button is located at the bottom-right of the main panel (590, 500).
+
+<Tip>
+You can also press **ESC** from the Manage Media panel to return to the main download interface (`ManageMediaPanel.java:542-555`).
+</Tip>
+
+## Media Library Table
+
+The central feature of the Manage Media panel is a sortable table displaying all media files (`ManageMediaPanel.java:698-719`).
+
+### Table Columns
+
+The table displays six columns of information:
+
+| Column | Description | Source |
+|--------|-------------|--------|
+| **Status** | Checkmark (✓) if file exists both locally and on server, download icon (⬇) during download | `ManageMediaPanel.java:109` |
+| **File Name** | Name of the media file | Local file or server metadata |
+| **Type** | "Video" or "Audio" classification | Detected from MIME type |
+| **Size** | File size in B, KB, MB, or GB | Local files only |
+| **Date Modified** | Last modified date in "dd-MM-yyyy HH:mm:ss" format | Local files only (`DownloadedMedia.java:80-83`) |
+| **Source** | "Local", "Server", or "Both" | Based on file location |
+
+### Auto-Refresh
+
+The media table automatically refreshes when the panel becomes visible (`ManageMediaPanel.java:272-279`):
+
+```java
+addComponentListener(new ComponentAdapter() {
+    @Override
+    public void componentShown(ComponentEvent e) {
+        loadMediaFiles();
+    }
+});
+```
+
+## Search and Filter Functionality
+
+### Text Filter
+
+The text filter field provides real-time search across all media filenames (`ManageMediaPanel.java:283-307`).
+
+<Steps>
+  <Step title="Enter search text">
+    Type any text into the filter field (located at coordinates 260, 60).
+
+    The search is case-insensitive and matches partial filenames.
+  </Step>
+
+  <Step title="Real-time filtering">
+    As you type, the table automatically updates using a DocumentListener:
+
+    ```java
+    textFilter = fieldFilter.getText().toLowerCase().trim();
+    loadMediaFiles();
+    ```
+  </Step>
+
+  <Step title="View filtered results">
+    Only files containing the search text in their filename will be displayed.
+
+    Both local and server files are filtered.
+  </Step>
+</Steps>
+
+### Type Filter ComboBox
+
+The type filter dropdown allows filtering by media type (`ManageMediaPanel.java:728-735`):
+
+- **All files** - Show all media (default)
+- **Video** - Show only video files
+- **Audio** - Show only audio files
+
+When you select a filter, the table reloads with only matching files (`ManageMediaPanel.java:752-756`):
+
+```java
+currentFilter = (String) comboBoxFilter.getSelectedItem();
+loadMediaFiles();
+```
+
+### Supported File Types
+
+The application recognizes the following media formats (`ManageMediaPanel.java:629-653`):
+
+**Video formats**:
+- `.mp4`, `.webm`, `.mkv`, `.avi`, `.flv`, `.mov`
+
+**Audio formats**:
+- `.mp3`, `.m4a`, `.opus`, `.wav`, `.flac`, `.aac`
+
+## Quick Actions
+
+The Quick Actions list provides fast access to common operations (`ManageMediaPanel.java:350-357`):
+
+- **Play** - Open the selected file in default media player
+- **Open Folder** - Open the download directory in file explorer
+- **Download** - Download a server file to local storage
+- **Delete** - Remove a local file from disk
+
+### Using Quick Actions
+
+<Steps>
+  <Step title="Select a file">
+    Click on a row in the media table to select it.
+  </Step>
+
+  <Step title="Double-click an action">
+    Double-click on one of the Quick Actions to execute it (`ManageMediaPanel.java:358-374`).
+
+    The action will be performed on the selected file.
+  </Step>
+</Steps>
+
+## Right-Click Context Menu
+
+Right-clicking on any file in the table opens a context menu with all available actions (`ManageMediaPanel.java:309-347`).
+
+### Context Menu Options
+
+The context menu includes:
+
+<AccordionGroup>
+  <Accordion title="Play">
+    Opens the selected local file using your system's default media player.
+
+    **Implementation**: `executeAction("Play")` → `playSelectedFile()`
+
+    **Availability**: Local files only
+  </Accordion>
+
+  <Accordion title="Open Folder">
+    Opens the download directory in your file explorer.
+
+    **Implementation**: `executeAction("Open Folder")` → `openCurrentFolder()`
+
+    **Availability**: Always available
+  </Accordion>
+
+  <Accordion title="Download">
+    Downloads a server file to your local download directory.
+
+    **Implementation**: `executeAction("Download")` → `downloadSelectedFile()`
+
+    **Availability**: Server files only (shows info message for local files)
+  </Accordion>
+
+  <Accordion title="Delete">
+    Permanently deletes a local file from disk after confirmation.
+
+    **Implementation**: `executeAction("Delete")` → `deleteSelectedFile()`
+
+    **Availability**: Local files only
+  </Accordion>
+</AccordionGroup>
+
+### Context Menu Activation
+
+The context menu appears on right-click (popup trigger) and automatically selects the row under the cursor (`ManageMediaPanel.java:328-346`):
+
+```java
+tblFiles.addMouseListener(new MouseAdapter() {
+    private void showContextMenu(MouseEvent e) {
+        int row = tblFiles.rowAtPoint(e.getPoint());
+        if (row >= 0) {
+            tblFiles.setRowSelectionInterval(row, row);
+        }
+        tableContextMenu.show(e.getComponent(), e.getX(), e.getY());
+    }
+});
+```
+
+## Playing Files
+
+The Play action opens media files using your system's default application (`ManageMediaPanel.java:415-445`).
+
+### Play Workflow
+
+<Steps>
+  <Step title="Select a local file">
+    Click on a file with Source = "Local" or "Both".
+
+    Server-only files cannot be played directly.
+  </Step>
+
+  <Step title="Trigger Play action">
+    Either:
+    - Right-click → Play
+    - Double-click "Play" in Quick Actions
+  </Step>
+
+  <Step title="Desktop API opens file">
+    The application uses Java's Desktop API (`ManageMediaPanel.java:431-432`):
+
+    ```java
+    Desktop.getDesktop().open(file);
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+If you attempt to play a server file, you'll see: "Cannot play server files. Download first."
+</Warning>
+
+## Opening the Download Folder
+
+The "Open Folder" action opens your download directory in the system file explorer (`ManageMediaPanel.java:447-458`).
+
+This uses the same Desktop API:
+
+```java
+File folder = new File(currentDirectory);
+Desktop.getDesktop().open(folder);
+```
+
+The `currentDirectory` is read from `config.txt` (`ManageMediaPanel.java:576-596`):
+
+```text
+downloadDir:"C:\\Users\\YourName\\Downloads"
+```
+
+## Downloading Server Files
+
+Files stored on the server (Source = "Server") can be downloaded to local storage using a SwingWorker (`ManageMediaPanel.java:465-504`).
+
+### Download Process
+
+<Steps>
+  <Step title="Select server file">
+    Click on a row where Source = "Server".
+  </Step>
+
+  <Step title="Start download">
+    Right-click → Download (or double-click Download in Quick Actions).
+  </Step>
+
+  <Step title="Download indicator">
+    The Status column shows a download icon: ⬇ (`ManageMediaPanel.java:475`)
+  </Step>
+
+  <Step title="Background download">
+    A SwingWorker downloads the file without blocking the UI (`ManageMediaPanel.java:477-496`):
+
+    ```java
+    SwingWorker<Boolean, Void> worker = new SwingWorker<Boolean, Void>() {
+        @Override
+        protected Boolean doInBackground() throws Exception {
+            mediaPollingComponent.download(media.id, outputFile);
+            return true;
+        }
+    };
+    ```
+  </Step>
+
+  <Step title="Table refresh">
+    On completion, the table reloads and the file now shows Source = "Both" with a checkmark.
+  </Step>
+</Steps>
+
+<Note>
+If you select a file that's already downloaded locally, you'll see: "This file is already downloaded locally"
+</Note>
+
+## Deleting Files
+
+The Delete action permanently removes local files from disk after confirmation (`ManageMediaPanel.java:510-539`).
+
+### Delete Workflow
+
+<Steps>
+  <Step title="Select local file">
+    Click on a file with Source = "Local" or "Both".
+  </Step>
+
+  <Step title="Trigger Delete">
+    Right-click → Delete (or double-click Delete in Quick Actions).
+  </Step>
+
+  <Step title="Confirmation dialog">
+    A warning dialog appears (`ManageMediaPanel.java:519-523`):
+
+    ```text
+    Are you sure you want to delete:
+    [filename]?
+    ```
+  </Step>
+
+  <Step title="File deletion">
+    If you click Yes, the file is deleted using Java's File API (`DownloadedMedia.java:99-105`):
+
+    ```java
+    public boolean deleteFile() {
+        File file = new File(filePath);
+        if (file.exists()) {
+            return file.delete();
+        }
+        return false;
+    }
+    ```
+  </Step>
+
+  <Step title="Table refresh">
+    The table reloads to reflect the deletion.
+  </Step>
+</Steps>
+
+<Warning>
+File deletion is permanent and cannot be undone. The file is removed from disk, not moved to the recycle bin.
+</Warning>
+
+### Server File Deletion
+
+Server files cannot be deleted from the Manage Media panel:
+
+```text
+Cannot delete server files. Download first.
+```
+
+## File Size Formatting
+
+Local files display formatted file sizes using a human-readable format (`ManageMediaPanel.java:660-672`):
+
+```java
+private String formatFileSize(long bytes) {
+    if (bytes < 1024) return bytes + " B";
+    else if (bytes < 1024 * 1024) return String.format("%.2f KB", bytes / 1024.0);
+    else if (bytes < 1024 * 1024 * 1024) return String.format("%.2f MB", bytes / (1024.0 * 1024.0));
+    else return String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0));
+}
+```
+
+Examples:
+- `1024` bytes → `1.00 KB`
+- `5242880` bytes → `5.00 MB`
+- `1073741824` bytes → `1.00 GB`
+
+## Media Type Detection
+
+The Type column displays "Video", "Audio", or "Other" based on MIME type detection.
+
+### Local Files
+
+Local files use Java's `Files.probeContentType()` to detect MIME type (`DownloadedMedia.java:66-76`):
+
+```java
+String mimeType = Files.probeContentType(file.toPath());
+```
+
+The MIME type is then classified (`DownloadedMedia.java:87-95`):
+
+```java
+if (mimeType.startsWith("video/")) return "Video";
+else if (mimeType.startsWith("audio/")) return "Audio";
+else return "Other";
+```
+
+### Server Files
+
+Server files use the MIME type provided by the API (`ManageMediaPanel.java:675-686`):
+
+```java
+private String getMediaTypeFromMime(String mimeType) {
+    if (mimeType.startsWith("video/")) return "Video";
+    if (mimeType.startsWith("audio/")) return "Audio";
+    return "Other";
+}
+```
+
+## Duplicate Detection
+
+The media library intelligently detects when the same file exists both locally and on the server (`DownloadedMedia.java:114-125`).
+
+### Matching Algorithm
+
+Files are matched using three criteria:
+
+1. **Server ID match**: `this.serverId == serverMedia.id`
+2. **BLOB GUID match**: `this.serverBlobGuid.equals(serverMedia.blobNameGuid)`
+3. **Filename + MIME type match**: `this.fileName.equals(serverMedia.mediaFileName) && this.mimeType.equals(serverMedia.mediaMimeType)`
+
+When a match is found:
+- Status column shows: ✓
+- Source column shows: "Both"
+- The file is only listed once in the table
+
+## Server Media Integration
+
+The Manage Media panel integrates with a server API to display and download remote media (`ManageMediaPanel.java:48`).
+
+### Media Polling
+
+The panel uses a `MediaPollingComponent` to periodically fetch new media from the server (`ManageMediaPanel.java:767-778`):
+
+```java
+public void setMediaPollingComponent(MediaPollingComponent mediaPollingComponent) {
+    this.mediaPollingComponent.addMediaPollingListener(newMedia -> {
+        SwingUtilities.invokeLater(() -> {
+            mediaFromServer.addAll(newMedia);
+            addNewMediaToTable(newMedia);
+        });
+    });
+}
+```
+
+### New Media Notifications
+
+When new media is detected on the server, it's automatically added to the table without requiring a manual refresh (`ManageMediaPanel.java:191-242`).
+
+## Sorting and Organization
+
+The table supports automatic sorting on all columns (`ManageMediaPanel.java:708`):
+
+```java
+tblFiles.setAutoCreateRowSorter(true);
+```
+
+<Steps>
+  <Step title="Click column header">
+    Click any column header to sort by that column.
+  </Step>
+
+  <Step title="Toggle sort direction">
+    Click again to toggle between ascending and descending order.
+  </Step>
+
+  <Step title="Visual indicator">
+    The sorted column displays a sort direction arrow in the header.
+  </Step>
+</Steps>
+
+<Note>
+When rows are sorted, the application correctly maps view row indices to model row indices using `convertRowIndexToModel()` to ensure actions are performed on the correct file.
+</Note>
+
+## Keyboard Shortcuts
+
+- **ESC** - Return to main panel (`ManageMediaPanel.java:542-555`)
+
+## Exit Button
+
+The **Exit** button returns you to the main download panel (`ManageMediaPanel.java:724`).
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Download More Media" icon="download" href="/guides/downloading-media">
+    Return to the main interface to download more videos
+  </Card>
+  <Card title="Configure Settings" icon="gear" href="/guides/preferences">
+    Customize download directory and other preferences
+  </Card>
+</CardGroup>

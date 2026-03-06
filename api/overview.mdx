@@ -1,0 +1,110 @@
+---
+title: API Overview
+description: Learn about MegaDownloader's API client and backend communication
+---
+
+## Introduction
+
+MegaDownloader includes a robust Java-based API client (`ApiClient`) that handles all communication with the backend server. The client provides a clean, type-safe interface for authentication, user management, and media operations.
+
+## Purpose
+
+The API client serves as the primary interface between the MegaDownloader application and the backend server, providing:
+
+- **User Authentication** - JWT-based login and session management
+- **User Profile Management** - Retrieve user information and nicknames
+- **Media Operations** - Upload, download, list, and filter media files
+- **Blob Storage Integration** - Direct interaction with Azure Blob Storage containers
+- **Polling Support** - Time-based media synchronization using ISO-8601 timestamps
+
+## Architecture
+
+The API client is built on Java's modern `HttpClient` API (java.net.http) and uses Jackson for JSON serialization/deserialization.
+
+```java
+public class ApiClient {
+    private final HttpClient client;
+    private final ObjectMapper mapper = new ObjectMapper();
+    private final String baseUrl;
+    private final String defaultBlobContainer = "dimedianetblobs";
+}
+```
+
+<Note>
+The client uses a 10-second connection timeout and 30-second request timeout by default.
+</Note>
+
+## Authentication Flow
+
+1. **Login** - User provides email and password to `/api/Auth/login`
+2. **Token Receipt** - Server returns a JWT token (checked as `token`, `access_token`, or `jwt`)
+3. **Token Storage** - Application stores token locally using Java Preferences API
+4. **Authenticated Requests** - Token is sent as `Bearer` token in `Authorization` header
+5. **Auto-Login** - Stored tokens are validated on application restart
+
+```java
+// Example authentication flow
+ApiClient client = new ApiClient("https://api.example.com");
+String jwt = client.login("user@example.com", "password123");
+Usuari user = client.getMe(jwt);
+```
+
+## Available Endpoints
+
+### Authentication
+- `POST /api/Auth/login` - Authenticate and receive JWT token
+
+### User Management
+- `GET /api/users/me` - Get current user profile
+- `GET /api/users/{id}/nickname` - Get user nickname by ID
+
+### Media Operations
+- `GET /api/files/all` - List all media files
+- `GET /api/files/me` - List current user's media
+- `GET /api/files/user/{userId}` - List media by specific user
+- `GET /api/files/{id}` - Download media file by ID
+- `POST /api/files/upload` - Upload new media file
+- `GET /api/files/added-since` - Get media added after a timestamp
+- `GET /api/files` - List blobs in container
+
+## Data Models
+
+The API client uses two primary model classes:
+
+<CardGroup cols={2}>
+  <Card title="Usuari" icon="user" href="/api/authentication#user-model">
+    User profile data including email, nickname, and registration info
+  </Card>
+  <Card title="Media" icon="photo-film" href="/api/api-client#media-model">
+    Media file metadata including URLs, MIME types, and blob references
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+The API client throws `IOException` for HTTP errors and network issues:
+
+```java
+try {
+    String jwt = client.login(email, password);
+} catch (IOException e) {
+    // Handle login failure: "Login failed: 401 -> {error message}"
+} catch (Exception e) {
+    // Handle other errors (network, JSON parsing, etc.)
+}
+```
+
+<Warning>
+All API methods throw `Exception` - implement proper error handling in production code.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="ApiClient Reference" icon="code" href="/api/api-client">
+    Detailed method signatures and examples
+  </Card>
+  <Card title="Authentication Guide" icon="key" href="/api/authentication">
+    JWT handling and token management
+  </Card>
+</CardGroup>

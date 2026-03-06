@@ -1,0 +1,486 @@
+---
+title: Preferences
+description: Configure yt-dlp location, download directory, speed limits, and other application settings
+---
+
+The Preferences panel allows you to configure all application settings including paths, download behavior, and performance options.
+
+## Accessing Preferences
+
+The Preferences panel is typically accessed through the application menu (Edit > Preferences) or from the main interface.
+
+The panel implements auto-loading of existing configuration on startup (`PreferencesPanel.java:43-48`):
+
+```java
+public PreferencesPanel() {
+    initComponents();
+    loadConfig();
+    setupEscapeKey();
+    setupSpeedLimiter();
+}
+```
+
+## Configuration File
+
+All preferences are stored in a local `config.txt` file in the application directory.
+
+### Config File Format
+
+The configuration file uses a simple key-value format (`PreferencesPanel.java:127-150`):
+
+```text
+path:"C:\\Tools\\yt-dlp.exe"
+downloadDir:"C:\\Users\\YourName\\Downloads"
+ffmpegPath:"C:\\Tools\\ffmpeg\\bin"
+```
+
+Each setting is on its own line with the format: `key:"value"`
+
+<Note>
+The configuration file is automatically loaded when the Preferences panel initializes.
+</Note>
+
+## yt-dlp Location
+
+The yt-dlp location setting specifies the path to the yt-dlp executable.
+
+### Setting yt-dlp Path
+
+<Steps>
+  <Step title="Click 'Change location'">
+    Click the **"Change location"** button under the "yt-dlp location:" label (`PreferencesPanel.java:196-201`).
+  </Step>
+
+  <Step title="Select executable">
+    A file chooser dialog opens filtered for executable files (`PreferencesPanel.java:328-342`):
+
+    ```java
+    JFileChooser fileChooser = new JFileChooser();
+    fileChooser.setDialogTitle("Select yt-dlp executable");
+    fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+    FileNameExtensionFilter filter = new FileNameExtensionFilter("Executable", "exe");
+    fileChooser.setFileFilter(filter);
+    ```
+  </Step>
+
+  <Step title="Path displayed">
+    The selected path is displayed in the label (`lblYtdlpCurrentPath`).
+
+    Example: `C:\\Tools\\yt-dlp.exe`
+  </Step>
+
+  <Step title="Save configuration">
+    Click the **"Save"** button to write the path to `config.txt`.
+  </Step>
+</Steps>
+
+### Current Path Display
+
+The current yt-dlp path is displayed next to "yt-dlp location:" (`PreferencesPanel.java:217`):
+
+- Default: **"Not configured"**
+- After configuration: Full path to the executable
+
+<Warning>
+If yt-dlp is not configured, download attempts will fail with an error: "yt-dlp path not configured. Please go to Edit > Preferences to set the path."
+</Warning>
+
+## Download Directory
+
+The download directory setting determines where media files are saved.
+
+### Configuring Download Directory
+
+<Steps>
+  <Step title="Click 'Change Download directory'">
+    Click the **"Change Download directory"** button (`PreferencesPanel.java:224-228`).
+  </Step>
+
+  <Step title="Select folder">
+    A directory chooser dialog opens (`PreferencesPanel.java:372-384`):
+
+    ```java
+    JFileChooser fileChooser = new JFileChooser();
+    fileChooser.setDialogTitle("Select download directory");
+    fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+    ```
+  </Step>
+
+  <Step title="Path displayed">
+    The selected path is displayed in `lblDownloadDirectoryPath`.
+
+    Example: `C:\\Users\\YourName\\Downloads`
+  </Step>
+
+  <Step title="Save configuration">
+    Click **"Save"** to persist the setting to `config.txt`.
+  </Step>
+</Steps>
+
+### Default Download Directory
+
+If no download directory is configured (`PreferencesPanel.java:222`):
+
+- Label displays: **"Default (where project is stored)"**
+- Files download to the application's working directory (`user.dir`)
+
+### Download Directory in config.txt
+
+When saved, the download directory is written to `config.txt` (`PreferencesPanel.java:360-362`):
+
+```java
+if (!downloadDirectoryPath.equals("Default (where project is stored)")) {
+    writer.write("downloadDir:\"" + downloadDirectoryPath + "\"");
+}
+```
+
+The default message is not written to the config file.
+
+## Speed Limiter Controls
+
+The speed limiter allows you to cap download speeds to avoid saturating your network connection.
+
+### Speed Limiter Components
+
+The speed limiter UI consists of three synchronized controls (`PreferencesPanel.java:66-123`):
+
+1. **Text field** (`txtLimiter`) - Displays current speed limit in "KB/s"
+2. **Slider** (`sliderLimiter`) - Visual control from 1 to 100,000 KB/s
+3. **Toggle button** (`toggleLimiter`) - Enables/disables the limiter
+
+### Enabling Speed Limiting
+
+<Steps>
+  <Step title="Click 'Limiter' toggle">
+    Click the **"Limiter"** toggle button to enable speed limiting (`PreferencesPanel.java:391-396`).
+
+    When enabled:
+    - The slider becomes active
+    - The text field becomes editable
+    - `limiterEnabled` is set to `true`
+  </Step>
+
+  <Step title="Adjust speed limit">
+    Set your desired speed limit using either:
+    
+    **Slider**: Drag the slider to set the limit visually
+    
+    **Text field**: Type a number (e.g., "1000") and it will automatically format to "1000 KB/s"
+  </Step>
+
+  <Step title="Limits apply on next download">
+    The speed limit is applied when you start your next download.
+
+    No need to save - the limiter settings are stored in memory.
+  </Step>
+</Steps>
+
+### Speed Limit Range
+
+The speed limiter supports values from **1 KB/s to 100,000 KB/s** (`PreferencesPanel.java:71-73`):
+
+```java
+sliderLimiter.setMinimum(1);
+sliderLimiter.setMaximum(100000);
+sliderLimiter.setValue(1000);  // Default: 1000 KB/s
+```
+
+### Slider and Text Field Synchronization
+
+The slider and text field are kept in sync using listeners:
+
+**Slider updates text** (`PreferencesPanel.java:79-87`):
+
+```java
+sliderLimiter.addChangeListener(new ChangeListener() {
+    @Override
+    public void stateChanged(ChangeEvent e) {
+        if (!sliderLimiter.getValueIsAdjusting()) {
+            speedLimitKBps = sliderLimiter.getValue();
+            txtLimiter.setText(speedLimitKBps + " KB/s");
+        }
+    }
+});
+```
+
+**Text updates slider** (`PreferencesPanel.java:89-122`):
+
+```java
+txtLimiter.getDocument().addDocumentListener(new DocumentListener() {
+    private void updateSliderFromText() {
+        String text = txtLimiter.getText().trim();
+        text = text.replaceAll("[^0-9]", "");  // Remove non-numeric chars
+        
+        int value = Integer.parseInt(text);
+        value = Math.max(1, Math.min(100000, value));  // Clamp to range
+        speedLimitKBps = value;
+        
+        if (sliderLimiter.getValue() != value) {
+            sliderLimiter.setValue(value);
+        }
+    }
+});
+```
+
+<Note>
+The text field automatically strips non-numeric characters, so you can type "1000 KB/s" or just "1000" and both will work.
+</Note>
+
+### Speed Limit Implementation
+
+When enabled, the speed limit is passed to yt-dlp using the `--limit-rate` flag:
+
+```bash
+yt-dlp --limit-rate 1000K <url>
+```
+
+The MainPanel reads the limiter settings from PreferencesPanel (`MainPanel.java:504-512`):
+
+```java
+final boolean limiterEnabled = preferencesPanel.isLimiterEnabled();
+final int speedLimitKBps = preferencesPanel.getSpeedLimitKBps();
+
+if (limiterEnabled) {
+    command.add("--limit-rate");
+    command.add(speedLimitKBps + "K");
+}
+```
+
+## M3U Playlist Settings
+
+The M3U playlist option automatically creates `.m3u` playlist files for your downloads.
+
+### Enabling M3U Creation
+
+<Steps>
+  <Step title="Check 'Create m3u for playlists'">
+    Check the **"Create m3u for playlists"** radio button (`PreferencesPanel.java:235-240`).
+  </Step>
+
+  <Step title="Setting takes effect immediately">
+    The setting is stored in memory (`PreferencesPanel.java:386-389`):
+
+    ```java
+    createM3U = btnM3U.isSelected();
+    ```
+  </Step>
+
+  <Step title="Playlists created on download">
+    When enabled, a `playlist.m3u` file is automatically created in your download directory after each successful download.
+  </Step>
+</Steps>
+
+### M3U File Format
+
+The generated M3U file follows the Extended M3U format (`MainPanel.java:301-314`):
+
+```m3u
+#EXTM3U
+Song 1.mp3
+Song 2.mp3
+Video.mp4
+```
+
+Files are listed relative to the playlist location.
+
+### Audio vs Video Filtering
+
+M3U playlists are intelligently filtered based on download mode:
+
+- **Audio-only downloads**: Only includes `.mp3`, `.m4a`, `.opus`, `.wav`, `.flac`, `.aac`
+- **Video downloads**: Only includes `.mp4`, `.webm`, `.mkv`, `.avi`, `.flv`, `.mov`
+
+<Tip>
+M3U playlists are useful for:
+- Opening multiple files at once in media players like VLC
+- Creating auto-generated playlists from batch downloads
+- Organizing downloaded content
+</Tip>
+
+## Saving Configuration
+
+The **"Save"** button persists your yt-dlp path and download directory to `config.txt` (`PreferencesPanel.java:345-369`).
+
+### Save Process
+
+<Steps>
+  <Step title="Click Save button">
+    Click the **"Save"** button in the bottom-right.
+  </Step>
+
+  <Step title="Validation">
+    The application validates that yt-dlp path is configured (`PreferencesPanel.java:350-353`):
+
+    ```java
+    if (path.equals("Not configured")) {
+        JOptionPane.showMessageDialog(this, 
+            "Please select a yt-dlp location first", 
+            "No Path Selected", 
+            JOptionPane.WARNING_MESSAGE);
+        return;
+    }
+    ```
+  </Step>
+
+  <Step title="Write to config.txt">
+    Settings are written to `config.txt` (`PreferencesPanel.java:356-362`):
+
+    ```java
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter("config.txt"))) {
+        writer.write("path:\"" + path + "\"");
+        writer.newLine();
+        if (!downloadDirectoryPath.equals("Default (where project is stored)")) {
+            writer.write("downloadDir:\"" + downloadDirectoryPath + "\"");
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Success message">
+    On success, you'll see: "Configuration saved successfully!"
+  </Step>
+</Steps>
+
+<Warning>
+If you don't click Save, your yt-dlp path and download directory changes will be lost when the application closes.
+</Warning>
+
+### Settings That Don't Require Saving
+
+These settings are stored in memory and don't need to be saved:
+
+- Speed limiter enabled/disabled
+- Speed limit value
+- M3U playlist creation
+- FFmpeg path (if manually configured in config.txt)
+
+## FFmpeg Path (Manual)
+
+While not exposed in the UI, you can manually configure the FFmpeg path in `config.txt` (`PreferencesPanel.java:141-145`):
+
+```text
+path:"C:\\Tools\\yt-dlp.exe"
+downloadDir:"C:\\Users\\YourName\\Downloads"
+ffmpegPath:"C:\\Tools\\ffmpeg\\bin"
+```
+
+The application will read this on startup and use it for audio extraction.
+
+<Note>
+FFmpeg auto-detection is attempted first. The manual `ffmpegPath` setting is only used as a fallback.
+</Note>
+
+## Back Button
+
+The **"Back"** button returns to the previous panel without saving changes (`PreferencesPanel.java:319-324`).
+
+## Keyboard Shortcuts
+
+- **ESC** - Go back to previous panel (`PreferencesPanel.java:51-64`)
+
+## Preferences API
+
+Other panels can access preference values through public getter methods (`PreferencesPanel.java:153-167`):
+
+```java
+public boolean isCreateM3UEnabled()    // M3U setting
+public String getFfmpegPath()          // FFmpeg directory
+public boolean isLimiterEnabled()      // Speed limiter on/off
+public int getSpeedLimitKBps()         // Speed limit value
+```
+
+Example usage from MainPanel:
+
+```java
+if (preferencesPanel != null) {
+    limiterEnabled = preferencesPanel.isLimiterEnabled();
+    speedLimitKBps = preferencesPanel.getSpeedLimitKBps();
+}
+```
+
+## Configuration Loading
+
+Configuration is automatically loaded when the Preferences panel is created (`PreferencesPanel.java:127-151`):
+
+```java
+private void loadConfig() {
+    File configFile = new File("config.txt");
+    if (configFile.exists()) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(configFile))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.startsWith("path:\"") && line.endsWith("\"")) {
+                    String path = line.substring(6, line.length() - 1);
+                    lblYtdlpCurrentPath.setText(path);
+                } else if (line.startsWith("downloadDir:\"") && line.endsWith("\"")) {
+                    String path = line.substring(13, line.length() - 1);
+                    lblDownloadDirectoryPath.setText(path);
+                } else if (line.startsWith("ffmpegPath:\"") && line.endsWith("\"")) {
+                    String path = line.substring(12, line.length() - 1);
+                    ffmpegPath = path;
+                }
+            }
+        }
+    }
+}
+```
+
+## Troubleshooting Configuration
+
+<AccordionGroup>
+  <Accordion title="Configuration not persisting">
+    **Cause**: Changes not saved before closing Preferences
+
+    **Solution**: Always click the **Save** button before leaving Preferences
+  </Accordion>
+
+  <Accordion title="Downloads fail with 'yt-dlp not configured'">
+    **Cause**: yt-dlp path not set or config.txt not saved
+
+    **Solution**:
+    1. Open Preferences
+    2. Click "Change location" and select yt-dlp.exe
+    3. Click **Save**
+    4. Verify config.txt exists in application directory
+  </Accordion>
+
+  <Accordion title="Speed limiter not working">
+    **Cause**: Limiter toggle is off
+
+    **Solution**: Click the **Limiter** toggle button to enable it (it should appear pressed/selected)
+  </Accordion>
+
+  <Accordion title="FFmpeg not detected">
+    **Cause**: FFmpeg not in yt-dlp directory and not manually configured
+
+    **Solution**:
+    - Place `ffmpeg.exe` and `ffprobe.exe` in the same folder as yt-dlp
+    - OR manually add `ffmpegPath:"C:\\path\\to\\ffmpeg"` to config.txt
+  </Accordion>
+</AccordionGroup>
+
+## Example Configuration
+
+Here's a complete example `config.txt` file:
+
+```text
+path:"C:\\Tools\\yt-dlp.exe"
+downloadDir:"D:\\Media\\Downloads"
+ffmpegPath:"C:\\Tools\\ffmpeg\\bin"
+```
+
+This configuration:
+- Uses yt-dlp from `C:\Tools\yt-dlp.exe`
+- Downloads to `D:\Media\Downloads`
+- Uses FFmpeg from `C:\Tools\ffmpeg\bin`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Start Downloading" icon="download" href="/guides/downloading-media">
+    Configure your preferences and start downloading media
+  </Card>
+  <Card title="Audio Extraction" icon="music" href="/guides/audio-extraction">
+    Learn about FFmpeg integration for audio extraction
+  </Card>
+</CardGroup>

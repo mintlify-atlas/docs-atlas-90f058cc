@@ -1,0 +1,343 @@
+---
+title: FFmpeg Setup
+description: Configure FFmpeg for audio extraction with automatic detection and manual configuration
+---
+
+## Why FFmpeg is Required
+
+FFmpeg is essential for audio extraction in MegaDownloader. When you check the "Audio only" option, yt-dlp uses FFmpeg to:
+
+- Extract audio from video files
+- Convert audio to MP3 format
+- Process audio with custom settings
+
+<Warning>
+Without FFmpeg, audio extraction will fail. Video downloads work without FFmpeg.
+</Warning>
+
+## Hybrid FFmpeg Detection System
+
+MegaDownloader uses a two-tier hybrid detection system to locate FFmpeg automatically:
+
+<Steps>
+  <Step title="Auto-Detection in yt-dlp Directory">
+    First, the application checks if FFmpeg is in the same directory as yt-dlp.
+    
+    **Required files:**
+    - `ffmpeg.exe`
+    - `ffprobe.exe`
+    
+    <Tip>
+    This is the **recommended setup** - place both executables in your yt-dlp directory for automatic detection.
+    </Tip>
+  </Step>
+  
+  <Step title="Manual Configuration Fallback">
+    If auto-detection fails, the application checks `config.txt` for a manual FFmpeg path.
+    
+    **Configuration key:** `ffmpegPath`
+  </Step>
+</Steps>
+
+## Installation Guide
+
+### Method 1: Automatic Detection (Recommended)
+
+Place FFmpeg in the same directory as yt-dlp for zero-configuration setup.
+
+<Steps>
+  <Step title="Download FFmpeg">
+    Download FFmpeg from the official builds:
+    
+    ```
+    https://www.gyan.dev/ffmpeg/builds/
+    ```
+    
+    <Note>
+    Choose the "essentials" build for a smaller download, or "full" for complete functionality.
+    </Note>
+  </Step>
+  
+  <Step title="Extract FFmpeg">
+    Extract the downloaded archive and locate these two files:
+    - `ffmpeg.exe`
+    - `ffprobe.exe`
+  </Step>
+  
+  <Step title="Copy to yt-dlp Directory">
+    Copy both executables to the **same directory** where `yt-dlp.exe` is located.
+    
+    **Example structure:**
+    ```
+    C:\Tools\yt-dlp\
+    ├── yt-dlp.exe
+    ├── ffmpeg.exe
+    └── ffprobe.exe
+    ```
+  </Step>
+  
+  <Step title="Verify Detection">
+    Restart MegaDownloader. The application will automatically detect FFmpeg.
+    
+    Check the console output for:
+    ```
+    FFmpeg autodetected: C:\Tools\yt-dlp
+    ```
+  </Step>
+</Steps>
+
+### Method 2: Manual Configuration
+
+If you prefer to keep FFmpeg in a separate directory, configure it manually.
+
+<Steps>
+  <Step title="Download and Extract FFmpeg">
+    Follow steps 1-2 from Method 1, but place FFmpeg in your preferred location.
+    
+    **Example:**
+    ```
+    C:\Tools\ffmpeg\bin\
+    ├── ffmpeg.exe
+    └── ffprobe.exe
+    ```
+  </Step>
+  
+  <Step title="Edit config.txt">
+    Add the FFmpeg directory path to `config.txt`:
+    
+    ```txt
+    ffmpegPath:"C:\Tools\ffmpeg\bin"
+    ```
+    
+    <Warning>
+    Use the directory path containing the executables, not the path to `ffmpeg.exe` itself.
+    </Warning>
+  </Step>
+  
+  <Step title="Verify Configuration">
+    Restart MegaDownloader and check the console output:
+    ```
+    Loaded FFmpeg path from config.txt: C:\Tools\ffmpeg\bin
+    FFmpeg found at manual path: C:\Tools\ffmpeg\bin
+    ```
+  </Step>
+</Steps>
+
+## How FFmpeg Detection Works
+
+The detection logic is implemented in `MainPanel.java` (lines 222-254):
+
+```java
+private String getFfmpegLocation() {
+    String ytdlpPath = getYtDlpPath();
+    if (ytdlpPath != null) {
+        File ytdlpFile = new File(ytdlpPath);
+        File ytdlpDir = ytdlpFile.getParentFile();
+        
+        if (ytdlpDir != null) {
+            File ffmpegExe = new File(ytdlpDir, "ffmpeg.exe");
+            File ffprobeExe = new File(ytdlpDir, "ffprobe.exe");
+            
+            if (ffmpegExe.exists() && ffprobeExe.exists()) {
+                System.out.println("FFmpeg autodetected: " + ytdlpDir.getAbsolutePath());
+                return ytdlpDir.getAbsolutePath();
+            }
+        }
+    }
+    
+    // Fallback to manual configuration
+    if (preferencesPanel != null) {
+        String manualPath = preferencesPanel.getFfmpegPath();
+        if (manualPath != null && !manualPath.isEmpty()) {
+            File ffmpegExe = new File(manualPath, "ffmpeg.exe");
+            File ffprobeExe = new File(manualPath, "ffprobe.exe");
+            
+            if (ffmpegExe.exists() && ffprobeExe.exists()) {
+                System.out.println("FFmpeg found at manual path: " + manualPath);
+                return manualPath;
+            }
+        }
+    }
+    
+    System.out.println("FFmpeg not found (auto-detect or manual)");
+    return null;
+}
+```
+
+### Detection Priority
+
+1. **Auto-detection:** Checks yt-dlp directory first
+2. **Manual configuration:** Falls back to `config.txt` setting
+3. **Not found:** Returns `null` and shows warning dialog
+
+## FFmpeg Integration with yt-dlp
+
+When FFmpeg is detected, MegaDownloader passes it to yt-dlp using the `--ffmpeg-location` parameter:
+
+```java
+if (ffmpegLocation != null) {
+    command.add("--ffmpeg-location");
+    command.add(ffmpegLocation);
+}
+```
+
+From **MainPanel.java** (lines 554-557)
+
+### Audio Extraction Command
+
+When "Audio only" is selected:
+
+```java
+if (audioOnly) {
+    command.add("-x");  // Extract audio
+    command.add("--audio-format");
+    command.add("mp3");  // Convert to MP3
+}
+```
+
+From **MainPanel.java** (lines 570-574)
+
+## FFmpeg Not Found Warning
+
+If you attempt audio extraction without FFmpeg, you'll see this warning:
+
+<Warning>
+**FFmpeg not found! Audio extraction requires FFmpeg.**
+
+Please either:
+1. Place ffmpeg.exe and ffprobe.exe in: `C:\Tools\yt-dlp`
+2. Add `ffmpegPath:"C:\path\to\ffmpeg\folder"` to config.txt
+
+Continue download anyway?
+</Warning>
+
+From **MainPanel.java** (lines 524-532)
+
+### Warning Behavior
+
+- **Yes:** Download proceeds without audio extraction (will likely fail)
+- **No:** Download is cancelled, allowing you to configure FFmpeg
+
+<Tip>
+The warning provides the exact yt-dlp directory path where you should place FFmpeg files.
+</Tip>
+
+## Troubleshooting FFmpeg Issues
+
+### FFmpeg Not Detected
+
+**Symptoms:**
+- Console shows: "FFmpeg not found (auto-detect or manual)"
+- Warning dialog appears when selecting audio extraction
+
+**Solutions:**
+
+<AccordionGroup>
+  <Accordion title="Verify File Names" icon="file">
+    Ensure files are named exactly:
+    - `ffmpeg.exe` (not `ffmpeg` or `ffmpeg.exe.exe`)
+    - `ffprobe.exe` (not `ffprobe` or `ffprobe.exe.exe`)
+    
+    <Warning>
+    Windows may hide file extensions. Enable "File name extensions" in File Explorer.
+    </Warning>
+  </Accordion>
+  
+  <Accordion title="Check File Locations" icon="folder">
+    For auto-detection:
+    - Files must be in the **same directory** as yt-dlp.exe
+    - Not in a subdirectory or parent directory
+    
+    For manual configuration:
+    - Path in config.txt must be the directory containing the executables
+    - Use absolute paths, not relative paths
+  </Accordion>
+  
+  <Accordion title="Verify File Permissions" icon="lock">
+    - Both executables must have execute permissions
+    - Not blocked by antivirus or Windows SmartScreen
+    - Try running ffmpeg.exe manually to verify it works
+  </Accordion>
+  
+  <Accordion title="Check config.txt Syntax" icon="code">
+    If using manual configuration:
+    ```txt
+    ffmpegPath:"C:\\Tools\\ffmpeg\\bin"
+    ```
+    
+    - Path must be in double quotes
+    - No spaces around the colon
+    - Use double backslashes or forward slashes in Windows paths
+  </Accordion>
+</AccordionGroup>
+
+### Audio Extraction Fails
+
+**Symptoms:**
+- Download completes but no MP3 file is created
+- Error messages about missing codecs
+
+**Solutions:**
+
+1. **Use full FFmpeg build:** The "essentials" build may be missing codecs
+2. **Check yt-dlp output:** Look for FFmpeg error messages in the console
+3. **Verify FFmpeg works:** Run this command manually:
+   ```bash
+   ffmpeg.exe -version
+   ```
+
+### Wrong FFmpeg Version
+
+<Note>
+MegaDownloader works with any modern FFmpeg version. If you encounter issues, download the latest build from https://www.gyan.dev/ffmpeg/builds/
+</Note>
+
+## Platform Considerations
+
+### Windows
+
+- Use `.exe` executables
+- Paths can use backslashes `\` or forward slashes `/`
+- File extensions are required
+
+### Linux/macOS
+
+<Note>
+The current implementation is Windows-specific (checks for `.exe` files). For cross-platform support, the detection logic would need to be updated.
+</Note>
+
+## Verifying FFmpeg Setup
+
+<Steps>
+  <Step title="Check Console Output">
+    Launch MegaDownloader and look for FFmpeg detection messages:
+    ```
+    Loaded FFmpeg path from config.txt: C:\Tools\ffmpeg\bin
+    FFmpeg autodetected: C:\Tools\yt-dlp
+    ```
+  </Step>
+  
+  <Step title="Test Audio Download">
+    1. Enter a video URL
+    2. Check "Audio only"
+    3. Click "Download"
+    4. Verify no FFmpeg warning appears
+  </Step>
+  
+  <Step title="Verify Output">
+    After download completes:
+    - Check that an `.mp3` file was created
+    - Console should show: `[ExtractAudio] Destination: filename.mp3`
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration Settings" icon="gear" href="/configuration/settings">
+    Learn about all configuration options
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/configuration/troubleshooting">
+    Solve common issues and errors
+  </Card>
+</CardGroup>

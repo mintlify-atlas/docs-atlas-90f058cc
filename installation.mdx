@@ -1,0 +1,254 @@
+---
+title: Installation
+description: Set up MegaDownloader on your system with all required dependencies
+---
+
+MegaDownloader is a Java Swing GUI application for downloading videos and audio from YouTube using yt-dlp. This guide will walk you through installing all prerequisites and building the application.
+
+## Prerequisites
+
+Before installing MegaDownloader, ensure you have the following installed on your system:
+
+<Steps>
+  <Step title="Java 24 or higher">
+    MegaDownloader requires Java 24 as specified in the `pom.xml` configuration:
+
+    ```xml
+    <properties>
+        <maven.compiler.release>24</maven.compiler.release>
+    </properties>
+    ```
+
+    Verify your Java installation:
+
+    ```bash
+    java -version
+    ```
+
+    If you need to install Java 24, download it from the [Oracle JDK website](https://www.oracle.com/java/technologies/downloads/) or use your system's package manager.
+  </Step>
+
+  <Step title="Apache Maven">
+    Maven is required for building the project and managing dependencies. 
+
+    Verify Maven is installed:
+
+    ```bash
+    mvn -version
+    ```
+
+    If not installed, download it from the [Maven website](https://maven.apache.org/download.cgi).
+  </Step>
+</Steps>
+
+## Required External Tools
+
+MegaDownloader relies on two external tools for downloading and processing media:
+
+<Steps>
+  <Step title="Install yt-dlp">
+    yt-dlp is the core download engine used by MegaDownloader.
+
+    1. Download the yt-dlp executable from the official repository:
+       - Visit: https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#installation
+    
+    2. Place `yt-dlp.exe` (Windows) or `yt-dlp` (Linux/Mac) in a known directory
+    
+    3. Note the full path - you'll need this during first-time configuration
+
+    <Note>
+    The application stores this path in `config.txt` and reads it using the `getYtDlpPath()` method from `MainPanel.java:174`.
+    </Note>
+  </Step>
+
+  <Step title="Install FFmpeg (Required for audio extraction)">
+    FFmpeg is essential for extracting audio from videos and converting formats.
+
+    1. Download FFmpeg from:
+       - Windows: https://www.gyan.dev/ffmpeg/builds/
+       - Linux/Mac: Use your package manager or download from https://ffmpeg.org/download.html
+    
+    2. Extract the archive and locate `ffmpeg.exe` and `ffprobe.exe` (or the non-.exe versions on Unix systems)
+    
+    3. **Important**: Place both executables in the **same directory** as `yt-dlp`
+
+    <Tip>
+    MegaDownloader automatically detects FFmpeg when it's in the same directory as yt-dlp using the hybrid detection system in `MainPanel.java:222-254`:
+
+    ```java
+    private String getFfmpegLocation() {
+        String ytdlpPath = getYtDlpPath();
+        if (ytdlpPath != null) {
+            File ytdlpFile = new File(ytdlpPath);
+            File ytdlpDir = ytdlpFile.getParentFile();
+            
+            if (ytdlpDir != null) {
+                File ffmpegExe = new File(ytdlpDir, "ffmpeg.exe");
+                File ffprobeExe = new File(ytdlpDir, "ffprobe.exe");
+                
+                if (ffmpegExe.exists() && ffprobeExe.exists()) {
+                    return ytdlpDir.getAbsolutePath();
+                }
+            }
+        }
+    }
+    ```
+    </Tip>
+
+    <Warning>
+    If you attempt audio extraction without FFmpeg, you'll see a warning dialog (`MainPanel.java:524-537`) prompting you to install it.
+    </Warning>
+  </Step>
+</Steps>
+
+## Building the Application
+
+Once all prerequisites are installed, build MegaDownloader from source:
+
+<Steps>
+  <Step title="Clone or download the source code">
+    Navigate to the project directory:
+
+    ```bash
+    cd /path/to/megadownloader
+    ```
+  </Step>
+
+  <Step title="Compile with Maven">
+    Compile the project and resolve dependencies:
+
+    ```bash
+    mvn clean compile
+    ```
+
+    This command:
+    - Downloads all dependencies (FlatLaf, Jackson, custom components)
+    - Compiles Java sources from `src/main/java/com/borjaalmazan/entrega1_1/`
+    - Validates the build configuration
+  </Step>
+
+  <Step title="Package as JAR (Optional)">
+    Create an executable JAR with all dependencies:
+
+    ```bash
+    mvn package
+    ```
+
+    The Maven Shade plugin will create an uber-JAR at `target/megadownloader-1.0-SNAPSHOT.jar` with the main class set to `com.borjaalmazan.entrega1_1.Main`.
+  </Step>
+
+  <Step title="Run the application">
+    Run directly with Maven:
+
+    ```bash
+    mvn exec:java
+    ```
+
+    Or run the packaged JAR:
+
+    ```bash
+    java -jar target/megadownloader-1.0-SNAPSHOT.jar
+    ```
+  </Step>
+</Steps>
+
+## First-Time Configuration
+
+When you first launch MegaDownloader, you'll need to configure the yt-dlp path:
+
+<Steps>
+  <Step title="Configuration prompt">
+    On first launch, you'll see this dialog (`Main.java:124-133`):
+
+    ```java
+    if (!configFile.exists()) {
+        JOptionPane.showMessageDialog(this,
+            "No configuration found.\n" +
+            "To be able to use the app, please go to Edit > Preferences to set the yt-dlp path.",
+            "Configuration Required",
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+    ```
+  </Step>
+
+  <Step title="Set yt-dlp location">
+    1. Click **Edit > Preferences** in the menu bar
+    2. Click **Change location** button
+    3. Navigate to and select your `yt-dlp.exe` file
+    4. The path will appear in the preferences panel
+  </Step>
+
+  <Step title="Set download directory (Optional)">
+    By default, files download to the project directory. To change this:
+
+    1. In Preferences, click **Change Download directory**
+    2. Select your preferred download folder
+    3. This path is stored in `config.txt` as `downloadDir:"/your/path"`
+  </Step>
+
+  <Step title="Save configuration">
+    Click **Save** to write settings to `config.txt`:
+
+    ```text
+    path:"C:\tools\yt-dlp.exe"
+    downloadDir:"C:\Users\YourName\Downloads"
+    ```
+  </Step>
+</Steps>
+
+<Note>
+The configuration file is read by `PreferencesPanel.java:127-151` on startup and persists between sessions.
+</Note>
+
+## Manual FFmpeg Configuration
+
+If FFmpeg is installed in a different location than yt-dlp:
+
+1. Open `config.txt` in a text editor
+2. Add the FFmpeg path:
+
+```text
+path:"C:\tools\yt-dlp.exe"
+downloadDir:"C:\Users\YourName\Downloads"
+ffmpegPath:"C:\ffmpeg\bin"
+```
+
+3. Save and restart the application
+
+The application will check this manual path as a fallback (`MainPanel.java:239-250`).
+
+## Verifying Installation
+
+To verify everything is set up correctly:
+
+1. Launch MegaDownloader
+2. Log in with your credentials
+3. Go to **Edit > Preferences**
+4. Confirm the yt-dlp path is displayed (not "Not configured")
+5. Try downloading a test video to confirm functionality
+
+## Dependencies
+
+MegaDownloader uses the following libraries (automatically managed by Maven):
+
+- **FlatLaf 3.6.2** - Modern dark theme for the UI
+- **Jackson 3.0.0** - JSON parsing for API communication
+- **Custom MediaPollingComponent** - API integration for media management
+
+These are defined in `pom.xml:14-30` and downloaded automatically during the build process.
+
+## Troubleshooting
+
+<Tip>
+If you encounter issues during installation:
+
+- Ensure Java 24+ is properly installed and in your PATH
+- Verify yt-dlp is executable and not blocked by antivirus
+- Place FFmpeg executables directly in the yt-dlp directory for auto-detection
+- Check file permissions if configuration fails to save
+- Review console output for detailed error messages
+</Tip>
+
+## Next Steps
+
+Now that MegaDownloader is installed and configured, proceed to the [Quickstart Guide](/quickstart) to download your first video.

@@ -1,0 +1,170 @@
+---
+title: Introduction
+description: A Java Swing GUI application for downloading videos and audio from YouTube using yt-dlp
+---
+
+<div style={{
+  background: 'linear-gradient(135deg, #4f77b6 0%, #c6547b 50%, #b9c89d 100%)',
+  padding: '3rem 2rem',
+  borderRadius: '6px',
+  marginBottom: '2rem',
+  textAlign: 'center'
+}}>
+  <h1 style={{
+    fontFamily: 'Rockwell, serif',
+    fontSize: '48px',
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: '1rem'
+  }}>
+    MegaDownloader
+  </h1>
+  <p style={{
+    fontFamily: 'Roboto Condensed, sans-serif',
+    fontSize: '18px',
+    color: 'white',
+    maxWidth: '600px',
+    margin: '0 auto'
+  }}>
+    A powerful Java Swing desktop application for downloading videos and audio from YouTube with real-time progress tracking
+  </p>
+</div>
+
+## Overview
+
+MegaDownloader is a feature-rich desktop application that provides a modern, user-friendly interface for downloading media from YouTube. Built with Java Swing and powered by yt-dlp, it combines robust downloading capabilities with an elegant dark-themed UI.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running in minutes with our step-by-step guide
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Set up MegaDownloader and configure prerequisites
+  </Card>
+  <Card title="User Guide" icon="book-open" href="/guides/downloading-media">
+    Learn how to download videos and extract audio
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the technical architecture and API
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<CardGroup cols={3}>
+  <Card title="Video Downloads" icon="video">
+    Download videos in their original quality and format from YouTube
+  </Card>
+  <Card title="Audio Extraction" icon="music">
+    Extract audio as MP3 files using FFmpeg integration
+  </Card>
+  <Card title="Progress Tracking" icon="chart-line">
+    Monitor downloads with real-time progress bars
+  </Card>
+  <Card title="User Authentication" icon="lock">
+    Secure login system with API integration
+  </Card>
+  <Card title="Media Management" icon="folder-open">
+    Browse, play, and manage your downloaded files
+  </Card>
+  <Card title="Dark Theme" icon="moon">
+    Modern UI with FlatLaf Darcula theme
+  </Card>
+  <Card title="Speed Control" icon="gauge-high">
+    Configure download speed limits with dual controls
+  </Card>
+  <Card title="Playlist Support" icon="list">
+    Auto-generate M3U playlists for downloads
+  </Card>
+  <Card title="Customizable" icon="gear">
+    Configure paths, directories, and preferences
+  </Card>
+</CardGroup>
+
+## What Makes MegaDownloader Special?
+
+<AccordionGroup>
+  <Accordion title="Hybrid FFmpeg Detection">
+    MegaDownloader automatically detects FFmpeg in your yt-dlp directory and falls back to manual configuration if needed. This ensures audio extraction works seamlessly without complex setup.
+  </Accordion>
+
+  <Accordion title="Modern Java Swing UI">
+    Built with FlatLaf Darcula theme, the application features a sleek dark interface with custom window dragging, hand cursors on interactive elements, and smooth animations.
+  </Accordion>
+
+  <Accordion title="Integrated Media Management">
+    Not just a downloader — MegaDownloader includes a full media management panel where you can browse, search, filter, and play your downloaded files. Right-click context menus provide quick access to common actions.
+  </Accordion>
+
+  <Accordion title="Smart Playlist Generation">
+    When downloading playlists, MegaDownloader creates M3U files with intelligent file type filtering — audio-only downloads exclude video files, and vice versa.
+  </Accordion>
+</AccordionGroup>
+
+## System Requirements
+
+<Note>
+  MegaDownloader requires Java 24 or higher and Maven for building the project.
+</Note>
+
+### Required External Tools
+
+- **yt-dlp**: Command-line program to download videos from YouTube
+- **FFmpeg**: Multimedia framework required for audio extraction
+
+<Tip>
+  Place FFmpeg executables (`ffmpeg.exe` and `ffprobe.exe`) in the same directory as `yt-dlp.exe` for automatic detection.
+</Tip>
+
+## Getting Started
+
+Ready to start downloading? Follow these steps:
+
+<Steps>
+  <Step title="Install Prerequisites">
+    Download and install Java 24+, Maven, yt-dlp, and FFmpeg
+    
+    [View Installation Guide →](/installation)
+  </Step>
+  
+  <Step title="Build the Application">
+    Clone the repository and build with Maven
+    
+    ```bash
+    mvn clean compile
+    ```
+  </Step>
+  
+  <Step title="Configure Settings">
+    On first launch, configure the yt-dlp path and download directory
+    
+    [Learn More →](/guides/preferences)
+  </Step>
+  
+  <Step title="Start Downloading">
+    Paste a YouTube URL and click download!
+    
+    [User Guide →](/guides/downloading-media)
+  </Step>
+</Steps>
+
+## Project Information
+
+**Author**: Borja Almazán  
+**Course**: Desenvolupament d'Interfícies  
+**Assignment**: Entrega 1.1
+
+<Info>
+  This project was developed as part of an interface design course, demonstrating modern Java Swing development practices and integration with external command-line tools.
+</Info>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation Guide" icon="download" href="/installation">
+    Set up all prerequisites and build the application
+  </Card>
+  <Card title="Quick Start Tutorial" icon="play" href="/quickstart">
+    Download your first video in under 5 minutes
+  </Card>
+</CardGroup>
