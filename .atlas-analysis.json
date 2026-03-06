@@ -1,0 +1,76 @@
+{
+  "projectType": "frontend",
+  "projectName": "MegaDownloader",
+  "projectDescription": "A Java Swing GUI application for downloading videos and audio from YouTube using yt-dlp",
+  "theme": "almond",
+  "primaryColor": "#4f77b6",
+  "lightColor": "#c6547b",
+  "darkColor": "#b9c89d",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "installation",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "User Guide",
+        "pages": [
+          "guides/downloading-media",
+          "guides/audio-extraction",
+          "guides/managing-downloads",
+          "guides/preferences"
+        ]
+      },
+      {
+        "group": "Architecture",
+        "pages": [
+          "architecture/overview",
+          "architecture/components",
+          "architecture/ui-panels"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api/overview",
+          "api/api-client",
+          "api/authentication"
+        ]
+      },
+      {
+        "group": "Configuration",
+        "pages": [
+          "configuration/settings",
+          "configuration/ffmpeg",
+          "configuration/troubleshooting"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Video downloads in original format",
+    "Audio extraction to MP3 using FFmpeg",
+    "Real-time download progress tracking",
+    "User authentication and media management",
+    "Configurable download directory and speed limits",
+    "Dark theme UI with FlatLaf Darcula",
+    "M3U playlist generation for downloads"
+  ],
+  "publicApiSurface": [
+    "Main - Application entry point and window manager",
+    "MainPanel - Download interface panel",
+    "LoginForm - User authentication panel",
+    "ManageMediaPanel - Downloaded media management",
+    "PreferencesPanel - Application settings",
+    "ApiClient - HTTP client for backend API",
+    "ApiClient.login(email, password)",
+    "ApiClient.getMe(jwt)",
+    "ApiClient.getMedia(jwt)",
+    "ApiClient.downloadMedia(jwt, mediaId, file)",
+    "DownloadedMedia - Media data model"
+  ]
+}
